@@ -33,6 +33,20 @@ class ResultHardwareInfo(BaseModel):
     peak_gpu_memory_gb: float | None = None
 
 
+class ResultSoftwareInfo(BaseModel):
+    vllm_version: str | None = None
+    serving_backend: str | None = None
+    backend_commit: str | None = None
+
+
+class ResultSpeculationInfo(BaseModel):
+    method: str | None = None
+    draft_model: str | None = None
+    num_speculative_tokens: int | None = None
+    acceptance_rate: float | None = None
+    notes: str | None = None
+
+
 class ResultWorkloadInfo(BaseModel):
     name: str
     description: str
@@ -105,6 +119,8 @@ class BenchmarkResult(BaseModel):
     config_name: str
     model: ResultModelInfo
     hardware: ResultHardwareInfo
+    software: ResultSoftwareInfo
+    speculation: ResultSpeculationInfo
     workloads: list[ResultWorkloadInfo]
     aggregate_metrics: MetricSummary
     per_workload_metrics: list[PerWorkloadMetrics]
@@ -144,6 +160,18 @@ def build_benchmark_result(
             provider=config.hardware.provider,
             hourly_cost_usd=hourly_cost,
             peak_gpu_memory_gb=peak_gpu_memory_gb,
+        ),
+        software=ResultSoftwareInfo(
+            vllm_version=config.software.vllm_version,
+            serving_backend=config.software.serving_backend,
+            backend_commit=config.software.backend_commit,
+        ),
+        speculation=ResultSpeculationInfo(
+            method=config.speculation.method,
+            draft_model=config.speculation.draft_model,
+            num_speculative_tokens=config.speculation.num_speculative_tokens,
+            acceptance_rate=config.speculation.acceptance_rate,
+            notes=config.speculation.notes,
         ),
         workloads=[
             ResultWorkloadInfo(name=workload.name, description=workload.description)

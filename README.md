@@ -1,6 +1,6 @@
 # FastCoder-Serve
 
-FastCoder-Serve is a production-grade inference serving and measurement project for code LLMs. The target system will benchmark Qwen2.5-Coder-7B-Instruct on a single H100 with vLLM across FP16, FP8, AWQ-Marlin INT4, speculative decoding, and prefix caching, then publish latency, throughput, quality, memory, and cost Pareto curves.
+FastCoder-Serve is a production-grade inference serving and measurement project for code LLMs. The target system will benchmark Qwen2.5-Coder-7B-Instruct on a single H100 with vLLM across FP16, FP8, AWQ-Marlin INT4, and later conditional speculative-decoding or prefix-caching ablations, then publish latency, throughput, quality, memory, and cost Pareto curves.
 
 **Current status:** this repo is currently at local foundation stage. H100 benchmark results are not measured yet. No speedups, quality deltas, or cost claims should be inferred from the smoke paths in this repository.
 
@@ -11,6 +11,7 @@ FastCoder-Serve is a production-grade inference serving and measurement project 
 - Config-driven benchmark harness targeting any OpenAI-compatible `/v1/chat/completions` endpoint, including streamed TTFT and ITL timing.
 - FastAPI gateway skeleton with bearer auth, local in-memory rate limiting, true streaming pass-through, structured logs, and Prometheus metrics.
 - Stable benchmark result schema version `0.1`.
+- Result metadata for serving backend, backend commit, vLLM version, and speculative-decoding settings.
 - H100 FP16 baseline config and runbook scaffolding, not executed yet.
 - Placeholder Docker, Prometheus, Grafana, CI, and methodology files.
 
@@ -120,6 +121,7 @@ Benchmark outputs under `results/*.json` use schema version `0.1` with these top
 
 - `run_id`, `created_at`, and `config_name`
 - `model` and `hardware` metadata
+- `software` and `speculation` metadata
 - `workloads`
 - `aggregate_metrics`
 - `per_workload_metrics`
@@ -137,11 +139,13 @@ See [docs/h100_baseline_runbook.md](docs/h100_baseline_runbook.md) for the futur
 ## Roadmap
 
 - Tier 1 core: H100 vLLM FP16 baseline, FP8, AWQ-Marlin INT4, benchmark JSON, Pareto plot, FastAPI gateway, Prometheus/Grafana, Docker, CI, and writeup.
-- Tier 2 ablations: EAGLE/speculative decoding, prefix caching, acceptance-rate metrics, and side-by-side demo.
+- Tier 2 ablations: draft-model speculative decoding, conditional EAGLE 3.1 if compatible support exists, prefix caching, acceptance-rate metrics, and side-by-side demo.
 - Tier 3 stretch: SGLang head-to-head and a small upstream contribution to vLLM or SGLang.
 
 ## Honesty Policy
 
 FastCoder-Serve is measurement-first. Do not claim latency improvements, throughput gains, HumanEval retention, GPU memory savings, or cost reductions until the numbers are measured on the declared hardware and committed with reproducible configuration.
+
+EAGLE 3.1 is conditional/stretch for this repository. It may require vLLM nightly, current main, or an upcoming v0.22.0 release line plus compatible Qwen2.5-Coder support. If that support is unavailable, draft-model speculative decoding or a documented incompatibility is the correct outcome.
 
 The next milestone is a real FP16 vLLM baseline on a RunPod H100 using `configs/baseline_fp16.yaml`. That milestone is intentionally not part of local CI or smoke testing.

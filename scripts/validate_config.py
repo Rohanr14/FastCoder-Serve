@@ -38,8 +38,14 @@ def main() -> int:
     print(f"  provider: {config.hardware.provider}")
     print(f"  gpu: {config.hardware.gpu_name}")
     print(f"  gpu memory GB: {config.hardware.gpu_memory_gb}")
+    print(f"  serving backend: {config.software.serving_backend}")
+    print(f"  vLLM version: {config.software.vllm_version}")
+    print(f"  backend commit: {config.software.backend_commit}")
+    print(f"  speculative method: {config.speculation.method}")
+    print(f"  speculative model: {config.speculation.draft_model}")
     hourly_cost = config.hardware.hourly_cost_usd or config.cost.accelerator_hourly_cost_usd
     print(f"  hourly cost USD: {hourly_cost}")
+    print(f"  measurement hypothesis: {config.measurement_hypothesis}")
     return 0
 
 

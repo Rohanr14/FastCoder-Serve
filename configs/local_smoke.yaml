@@ -16,6 +16,12 @@ max_tokens: 32
 temperature: 0
 stream: false
 output_path: results/local_smoke.json
+vllm_version: null
+serving_backend: fake_openai_server
+backend_commit: null
+speculative_method: null
+speculative_model: null
+speculative_notes: null
 cost:
   accelerator_hourly_cost_usd: null
 hardware:
@@ -23,5 +29,16 @@ hardware:
   gpu_memory_gb: null
   provider: null
   hourly_cost_usd: null
+software:
+  vllm_version: null
+  serving_backend: fake_openai_server
+  backend_commit: null
+speculation:
+  method: null
+  draft_model: null
+  num_speculative_tokens: null
+  acceptance_rate: null
+  notes: null
+measurement_hypothesis: Local non-streaming smoke validates benchmark plumbing only.
 metadata:
   note: Local CPU-safe smoke benchmark against scripts/fake_openai_server.py.

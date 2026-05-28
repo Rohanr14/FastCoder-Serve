@@ -16,6 +16,8 @@ REQUIRED_TOP_LEVEL_FIELDS = {
     "config_name",
     "model",
     "hardware",
+    "software",
+    "speculation",
     "aggregate_metrics",
     "per_workload_metrics",
     "per_request_metrics",

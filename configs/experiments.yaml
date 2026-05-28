@@ -2,7 +2,14 @@
 experiments:
   - name: fp16_baseline
     model_name: Qwen/Qwen2.5-Coder-7B-Instruct
+    serving_backend: vllm
+    vllm_version: null
+    backend_commit: null
     quantization_mode: fp16
+    speculative_method: null
+    speculative_model: null
+    speculative_notes: No speculative decoding; establishes the same-model baseline.
+    measurement_hypothesis: Establish FP16 quality, latency, throughput, memory, and cost before optimization ablations.
     vllm_args:
       dtype: float16
       enable_prefix_caching: false
@@ -13,7 +20,14 @@ experiments:
 
   - name: fp8
     model_name: Qwen/Qwen2.5-Coder-7B-Instruct
+    serving_backend: vllm
+    vllm_version: null
+    backend_commit: null
     quantization_mode: fp8
+    speculative_method: null
+    speculative_model: null
+    speculative_notes: No speculative decoding; isolate FP8 effect after FP16 baseline.
+    measurement_hypothesis: Measure whether H100 FP8 improves throughput or cost without unacceptable quality regression.
     vllm_args:
       quantization: fp8
       enable_prefix_caching: false
@@ -24,7 +38,14 @@ experiments:
 
   - name: awq_marlin
     model_name: Qwen/Qwen2.5-Coder-7B-Instruct-AWQ
+    serving_backend: vllm
+    vllm_version: null
+    backend_commit: null
     quantization_mode: awq_marlin
+    speculative_method: null
+    speculative_model: null
+    speculative_notes: No speculative decoding; isolate AWQ-Marlin effect after FP16 baseline.
+    measurement_hypothesis: Measure INT4 weight-only serving tradeoffs across latency, throughput, memory, cost, and HumanEval.
     vllm_args:
       quantization: awq_marlin
       enable_prefix_caching: false
@@ -33,27 +54,64 @@ experiments:
     cost_per_h100_hour_usd: 2.20
     notes: Weight-only INT4 quantization with Marlin kernels.
 
-  - name: awq_spec
+  - name: awq_draft_spec
     model_name: Qwen/Qwen2.5-Coder-7B-Instruct-AWQ
+    serving_backend: vllm
+    vllm_version: null
+    backend_commit: null
     quantization_mode: awq_marlin
+    speculative_method: draft_model
+    speculative_model: Qwen/Qwen2.5-Coder-0.5B-Instruct
+    speculative_notes: Realistic speculative path if EAGLE 3.1 support or a compatible Qwen head is unavailable.
+    measurement_hypothesis: Measure whether draft-model speculative decoding helps this code workload across concurrency without assuming the result.
     vllm_args:
       quantization: awq_marlin
       speculative_config:
-        method: eagle
+        method: draft_model
+        model: Qwen/Qwen2.5-Coder-0.5B-Instruct
         num_speculative_tokens: 5
     concurrency: [1, 8, 32, 64]
     workloads: [humaneval, short_chat_256_256, long_context_4k_512]
     cost_per_h100_hour_usd: 2.20
-    notes: Planned EAGLE/speculative decoding ablation.
+    notes: Conditional speculative decoding ablation using a smaller Qwen draft model.
+
+  - name: awq_eagle31_conditional
+    model_name: Qwen/Qwen2.5-Coder-7B-Instruct-AWQ
+    serving_backend: vllm
+    vllm_version: nightly_or_current_main
+    backend_commit: null
+    quantization_mode: awq_marlin
+    speculative_method: eagle_3_1
+    speculative_model: null
+    speculative_notes: Conditional stretch; requires vLLM nightly/current-main/upcoming v0.22.0 support and a compatible Qwen2.5-Coder configuration or draft head at execution time.
+    measurement_hypothesis: Test whether EAGLE 3.1 preserves acceptance behavior and improves throughput on this code workload across concurrency.
+    vllm_args:
+      quantization: awq_marlin
+      speculative_config:
+        method: eagle_3_1
+        model: null
+        num_speculative_tokens: 5
+    concurrency: [1, 8, 32, 64]
+    workloads: [humaneval, short_chat_256_256, long_context_4k_512]
+    cost_per_h100_hour_usd: 2.20
+    notes: Do not run unless compatible support is confirmed; document incompatibility as a finding if unavailable.
 
   - name: awq_spec_prefix
     model_name: Qwen/Qwen2.5-Coder-7B-Instruct-AWQ
+    serving_backend: vllm
+    vllm_version: null
+    backend_commit: null
     quantization_mode: awq_marlin
+    speculative_method: conditional
+    speculative_model: null
+    speculative_notes: Use draft-model speculation or EAGLE 3.1 only after the compatible method is confirmed.
+    measurement_hypothesis: Measure combined speculative decoding and prefix caching only after individual ablations are understood.
     vllm_args:
       quantization: awq_marlin
       enable_prefix_caching: true
       speculative_config:
-        method: eagle
+        method: conditional
+        model: null
         num_speculative_tokens: 5
     concurrency: [1, 8, 32, 64]
     workloads: [humaneval, short_chat_256_256, long_context_4k_512]

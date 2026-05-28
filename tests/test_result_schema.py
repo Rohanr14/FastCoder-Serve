@@ -41,6 +41,8 @@ def test_result_schema_has_required_top_level_fields() -> None:
         "config_name",
         "model",
         "hardware",
+        "software",
+        "speculation",
         "workloads",
         "aggregate_metrics",
         "per_workload_metrics",
@@ -48,4 +50,6 @@ def test_result_schema_has_required_top_level_fields() -> None:
     }
     assert payload["schema_version"] == "0.1"
     assert payload["hardware"]["gpu_name"] is None
+    assert payload["software"]["serving_backend"] is None
+    assert payload["speculation"]["method"] is None
     assert payload["aggregate_metrics"]["cost_per_1m_output_tokens_usd"] is None

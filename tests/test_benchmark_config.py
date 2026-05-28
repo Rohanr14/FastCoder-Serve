@@ -43,4 +43,13 @@ def test_load_baseline_fp16_config_without_resolving_humaneval() -> None:
     assert config.model_server.dtype == "fp16"
     assert config.hardware.gpu_name == "NVIDIA H100 80GB HBM3"
     assert config.hardware.hourly_cost_usd == 2.20
+    assert config.serving_backend == "vllm"
+    assert config.vllm_version is None
+    assert config.speculative_method is None
+    assert config.speculative_model is None
+    assert config.software.serving_backend == "vllm"
+    assert config.software.vllm_version is None
+    assert config.speculation.method is None
+    assert config.speculation.draft_model is None
+    assert config.measurement_hypothesis is not None
     assert "humaneval" in config.workloads
