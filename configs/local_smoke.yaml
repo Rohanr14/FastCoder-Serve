@@ -1,0 +1,27 @@
+experiment_name: local_smoke
+model_server:
+  base_url: http://localhost:9000/v1
+  model: fake-coder
+  timeout_seconds: 10
+  notes: Local deterministic fake server; not a model benchmark.
+workloads:
+  - short_chat
+  - code_completion
+  - long_context_tiny
+concurrency:
+  - 1
+  - 2
+requests_per_workload_per_concurrency: 2
+max_tokens: 32
+temperature: 0
+stream: false
+output_path: results/local_smoke.json
+cost:
+  accelerator_hourly_cost_usd: null
+hardware:
+  gpu_name: null
+  gpu_memory_gb: null
+  provider: null
+  hourly_cost_usd: null
+metadata:
+  note: Local CPU-safe smoke benchmark against scripts/fake_openai_server.py.

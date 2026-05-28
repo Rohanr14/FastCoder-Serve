@@ -1,0 +1,38 @@
+# Future H100 FP16 baseline configuration. Do not run locally.
+experiment_name: baseline_fp16
+model_server:
+  base_url: http://localhost:8000/v1
+  model: Qwen/Qwen2.5-Coder-7B-Instruct
+  timeout_seconds: 120
+  quantization: null
+  dtype: fp16
+  notes: Direct vLLM OpenAI-compatible endpoint or FastCoder gateway in front of vLLM.
+expected_endpoints:
+  direct_vllm: http://localhost:8000/v1
+  gateway: http://localhost:8080/v1
+workloads:
+  - short_chat
+  - code_completion
+  - long_context
+  - humaneval
+concurrency:
+  - 1
+  - 8
+  - 32
+  - 64
+requests_per_workload_per_concurrency: 50
+max_tokens: 512
+temperature: 0
+stream: true
+output_path: results/baseline_fp16.json
+cost:
+  accelerator_hourly_cost_usd: 2.20
+hardware:
+  gpu_name: NVIDIA H100 80GB HBM3
+  gpu_memory_gb: 80
+  provider: RunPod
+  hourly_cost_usd: 2.20
+metadata:
+  local_runnable: "false"
+  warning: Requires an explicitly provisioned H100 vLLM server; do not run as local smoke.
+  humaneval: Placeholder only until HumanEval prompt loading/evaluation is implemented.

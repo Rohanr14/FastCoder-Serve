@@ -1,0 +1,27 @@
+experiment_name: local_smoke_streaming
+model_server:
+  base_url: http://localhost:9000/v1
+  model: fake-coder
+  timeout_seconds: 10
+  notes: Local deterministic fake server with SSE streaming enabled.
+workloads:
+  - short_chat
+  - code_completion
+  - long_context_tiny
+concurrency:
+  - 1
+  - 2
+requests_per_workload_per_concurrency: 2
+max_tokens: 32
+temperature: 0
+stream: true
+output_path: results/local_smoke_streaming.json
+cost:
+  accelerator_hourly_cost_usd: null
+hardware:
+  gpu_name: null
+  gpu_memory_gb: null
+  provider: null
+  hourly_cost_usd: null
+metadata:
+  note: Local CPU-safe streaming smoke benchmark against scripts/fake_openai_server.py.

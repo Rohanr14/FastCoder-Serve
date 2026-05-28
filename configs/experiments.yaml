@@ -1,0 +1,61 @@
+# Planned H100 experiment skeleton. This file is not intended for local smoke execution yet.
+experiments:
+  - name: fp16_baseline
+    model_name: Qwen/Qwen2.5-Coder-7B-Instruct
+    quantization_mode: fp16
+    vllm_args:
+      dtype: float16
+      enable_prefix_caching: false
+    concurrency: [1, 8, 32, 64]
+    workloads: [humaneval, short_chat_256_256, long_context_4k_512]
+    cost_per_h100_hour_usd: 2.20
+    notes: Baseline quality and latency reference for all same-model comparisons.
+
+  - name: fp8
+    model_name: Qwen/Qwen2.5-Coder-7B-Instruct
+    quantization_mode: fp8
+    vllm_args:
+      quantization: fp8
+      enable_prefix_caching: false
+    concurrency: [1, 8, 32, 64]
+    workloads: [humaneval, short_chat_256_256, long_context_4k_512]
+    cost_per_h100_hour_usd: 2.20
+    notes: H100-native FP8 compute quantization ablation.
+
+  - name: awq_marlin
+    model_name: Qwen/Qwen2.5-Coder-7B-Instruct-AWQ
+    quantization_mode: awq_marlin
+    vllm_args:
+      quantization: awq_marlin
+      enable_prefix_caching: false
+    concurrency: [1, 8, 32, 64]
+    workloads: [humaneval, short_chat_256_256, long_context_4k_512]
+    cost_per_h100_hour_usd: 2.20
+    notes: Weight-only INT4 quantization with Marlin kernels.
+
+  - name: awq_spec
+    model_name: Qwen/Qwen2.5-Coder-7B-Instruct-AWQ
+    quantization_mode: awq_marlin
+    vllm_args:
+      quantization: awq_marlin
+      speculative_config:
+        method: eagle
+        num_speculative_tokens: 5
+    concurrency: [1, 8, 32, 64]
+    workloads: [humaneval, short_chat_256_256, long_context_4k_512]
+    cost_per_h100_hour_usd: 2.20
+    notes: Planned EAGLE/speculative decoding ablation.
+
+  - name: awq_spec_prefix
+    model_name: Qwen/Qwen2.5-Coder-7B-Instruct-AWQ
+    quantization_mode: awq_marlin
+    vllm_args:
+      quantization: awq_marlin
+      enable_prefix_caching: true
+      speculative_config:
+        method: eagle
+        num_speculative_tokens: 5
+    concurrency: [1, 8, 32, 64]
+    workloads: [humaneval, short_chat_256_256, long_context_4k_512]
+    cost_per_h100_hour_usd: 2.20
+    notes: Planned combined speculative decoding plus prefix-caching ablation.

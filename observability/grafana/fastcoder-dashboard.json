@@ -1,0 +1,140 @@
+{
+  "annotations": {
+    "list": []
+  },
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 0,
+  "id": null,
+  "links": [],
+  "liveNow": false,
+  "panels": [
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 0
+      },
+      "id": 1,
+      "options": {},
+      "targets": [
+        {
+          "expr": "sum(rate(fastcoder_gateway_requests_total[5m]))",
+          "legendFormat": "requests/sec",
+          "refId": "A"
+        }
+      ],
+      "title": "Request Rate",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 0
+      },
+      "id": 2,
+      "options": {},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(fastcoder_gateway_request_latency_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p95 latency",
+          "refId": "A"
+        }
+      ],
+      "title": "Latency",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 8
+      },
+      "id": 3,
+      "options": {},
+      "targets": [
+        {
+          "expr": "sum(rate(fastcoder_gateway_errors_total[5m]))",
+          "legendFormat": "errors/sec",
+          "refId": "A"
+        }
+      ],
+      "title": "Errors",
+      "type": "timeseries"
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": []
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 8
+      },
+      "id": 4,
+      "options": {},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(fastcoder_gateway_ttft_seconds_bucket[5m])) by (le))",
+          "legendFormat": "future p50 TTFT",
+          "refId": "A"
+        }
+      ],
+      "title": "Future TTFT",
+      "type": "timeseries"
+    }
+  ],
+  "refresh": "10s",
+  "schemaVersion": 39,
+  "tags": [
+    "fastcoder",
+    "llm-inference"
+  ],
+  "templating": {
+    "list": []
+  },
+  "time": {
+    "from": "now-15m",
+    "to": "now"
+  },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "FastCoder-Serve Gateway",
+  "uid": "fastcoder-serve",
+  "version": 1,
+  "weekStart": ""
+}
