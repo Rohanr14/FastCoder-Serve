@@ -1,0 +1,56 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.egg-info/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+build/
+dist/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+
+# Logs and runtime output
+*.log
+logs/
+
+# Docs
+docs/
+
+# Local OS/editor files
+.DS_Store
+.idea/
+.vscode/
+
+# Model and dataset caches
+.cache/
+models/
+model_cache/
+hf_cache/
+huggingface/
+wandb/
+
+# Large benchmark artifacts. Keep lightweight placeholders and explicit smoke outputs.
+results/*
+!results/.gitkeep
+!results/local_smoke.json
+!results/local_smoke_streaming.json
+!results/pareto.png
+!results/manifests/
+results/manifests/*
+!results/manifests/.gitkeep
+
+# Docker/runtime noise
+*.pid
+docker/.env
