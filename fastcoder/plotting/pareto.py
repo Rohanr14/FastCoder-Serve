@@ -12,6 +12,7 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
 
 
 @dataclass(frozen=True, slots=True)
@@ -22,7 +23,12 @@ class ParetoPoint:
 
 
 def generate_pareto_plot(result_paths: Iterable[str | Path], output_path: str | Path) -> Path:
-    """Generate a simple placeholder Pareto-style scatter plot."""
+    """Plot output throughput vs latency, colored by precision/experiment.
+
+    Each result file is one color series and each workload a marker shape, with the encoding carried
+    by two legends rather than per-point text labels (which overlap badly once several precisions x
+    workloads x concurrency levels are plotted together).
+    """
 
     points = [point for path in result_paths for point in _load_points(path)]
     if not points:
@@ -32,24 +38,68 @@ def generate_pareto_plot(result_paths: Iterable[str | Path], output_path: str | 
     destination = Path(output_path)
     destination.parent.mkdir(parents=True, exist_ok=True)
 
-    fig, ax = plt.subplots(figsize=(8, 5))
-    ax.scatter([point.x_value for point in points], [point.y_value for point in points])
+    series_names = sorted({_series_of(point) for point in points})
+    workloads = sorted({_workload_of(point) for point in points})
+    palette = plt.get_cmap("tab10")
+    color_by_series = {name: palette(index % 10) for index, name in enumerate(series_names)}
+    marker_cycle = ["o", "s", "^", "D", "v", "P", "X", "*"]
+    marker_by_workload = {
+        name: marker_cycle[index % len(marker_cycle)] for index, name in enumerate(workloads)
+    }
+
+    fig, ax = plt.subplots(figsize=(9, 6))
     for point in points:
-        ax.annotate(
-            point.label,
-            (point.x_value, point.y_value),
-            fontsize=8,
-            xytext=(4, 4),
-            textcoords="offset points",
+        ax.scatter(
+            point.x_value,
+            point.y_value,
+            color=color_by_series[_series_of(point)],
+            marker=marker_by_workload[_workload_of(point)],
+            s=70,
+            edgecolors="black",
+            linewidths=0.4,
+            alpha=0.9,
         )
-    ax.set_xlabel("p50 latency or TTFT (seconds)")
-    ax.set_ylabel("Throughput (output tokens / second)")
-    ax.set_title("FastCoder-Serve Pareto Placeholder")
+
+    precision_handles = [
+        Line2D([0], [0], marker="o", linestyle="", markersize=8,
+               color=color_by_series[name], label=name)
+        for name in series_names
+    ]
+    workload_handles = [
+        Line2D([0], [0], marker=marker_by_workload[name], linestyle="", markersize=8,
+               color="0.4", label=name)
+        for name in workloads
+    ]
+    precision_legend = ax.legend(
+        handles=precision_handles, title="precision", loc="upper left", fontsize=8
+    )
+    ax.add_artist(precision_legend)
+    ax.legend(handles=workload_handles, title="workload", loc="lower right", fontsize=8)
+
+    ax.set_xlabel("p50 TTFT or latency (seconds)")
+    ax.set_ylabel("output throughput (tokens / second)")
+    ax.set_title(
+        "FastCoder-Serve: throughput vs latency\n"
+        "Qwen2.5-Coder-7B-Instruct, single H100, vLLM"
+    )
     ax.grid(True, alpha=0.3)
     fig.tight_layout()
-    fig.savefig(destination)
+    fig.savefig(destination, dpi=120)
     plt.close(fig)
     return destination
+
+
+def _series_of(point: ParetoPoint) -> str:
+    """Precision/experiment portion of a ``experiment:workload/cN`` label."""
+
+    return point.label.split(":", 1)[0]
+
+
+def _workload_of(point: ParetoPoint) -> str:
+    """Workload portion of a ``experiment:workload/cN`` label (drops the ``/cN`` suffix)."""
+
+    rest = point.label.split(":", 1)[1] if ":" in point.label else point.label
+    return rest.rsplit("/c", 1)[0]
 
 
 def _load_points(path: str | Path) -> list[ParetoPoint]:

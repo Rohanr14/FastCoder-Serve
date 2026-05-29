@@ -1,0 +1,24 @@
+{
+  "schema_version": "0.1",
+  "run_id": "4478184b-42f9-41e4-9744-56e05da4e236",
+  "created_at": "2026-05-29T18:37:49.632252+00:00",
+  "git": {
+    "commit_hash": "283f34b38bdb33bc18cac02f8ca05c1dc8819542",
+    "dirty": true
+  },
+  "config_file_path": "configs/humaneval_fp8.yaml",
+  "config_hash_sha256": "7866d478943fb430b76f8717ff4340ff4d9eed6e2f6c0fddc5a1165d1c5550f9",
+  "python_version": "3.11.13 (main, Jun  4 2025, 08:57:30) [GCC 13.3.0]",
+  "package_version": "0.1.0",
+  "platform": {
+    "system": "Linux",
+    "release": "6.8.0-90-generic",
+    "machine": "x86_64",
+    "platform": "Linux-6.8.0-90-generic-x86_64-with-glibc2.39"
+  },
+  "environment": {
+    "FASTCODER_API_KEY": "***REDACTED***"
+  },
+  "notes": "Confirmed HumanEval pass@1 eval run",
+  "intended_output_result_path": "results/humaneval_fp8.json"
+}

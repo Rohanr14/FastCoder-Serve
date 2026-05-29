@@ -1,0 +1,24 @@
+{
+  "schema_version": "0.1",
+  "run_id": "56fc8834-7eac-4de2-85f7-649edbc5c200",
+  "created_at": "2026-05-29T18:07:52.236211+00:00",
+  "git": {
+    "commit_hash": "283f34b38bdb33bc18cac02f8ca05c1dc8819542",
+    "dirty": true
+  },
+  "config_file_path": "configs/baseline_fp16.yaml",
+  "config_hash_sha256": "1eb44ba7c96056378815aa1578932e00d0240b2b22306711b1b884bdd72f0806",
+  "python_version": "3.11.13 (main, Jun  4 2025, 08:57:30) [GCC 13.3.0]",
+  "package_version": "0.1.0",
+  "platform": {
+    "system": "Linux",
+    "release": "6.8.0-90-generic",
+    "machine": "x86_64",
+    "platform": "Linux-6.8.0-90-generic-x86_64-with-glibc2.39"
+  },
+  "environment": {
+    "FASTCODER_API_KEY": "***REDACTED***"
+  },
+  "notes": "Confirmed H100 FP16 baseline run",
+  "intended_output_result_path": "results/baseline_fp16.json"
+}

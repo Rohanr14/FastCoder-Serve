@@ -2,32 +2,38 @@
 
 FastCoder-Serve is a production-grade inference serving and measurement project for code LLMs. The target system will benchmark Qwen2.5-Coder-7B-Instruct on a single H100 with vLLM across FP16, FP8, AWQ-Marlin INT4, and later conditional speculative-decoding or prefix-caching ablations, then publish latency, throughput, quality, memory, and cost Pareto curves.
 
-**Current status:** the first measured **FP16 baseline is committed** — single H100, vLLM 0.21.0, Qwen2.5-Coder-7B-Instruct. See [Results (measured)](#results-measured). FP8 and AWQ-Marlin INT4 ablations are next. Smoke paths in this repo are harness tests only; do not infer serving performance from them.
+**Current status:** FP16, FP8, and AWQ-Marlin INT4 are all measured and committed on a single H100 (vLLM 0.21.0, Qwen2.5-Coder-7B-Instruct) with exact token counts. See [Results (measured)](#results-measured) — headline: **FP8 gives ~+43% throughput and −30% cost at identical HumanEval pass@1**. Smoke paths in this repo are harness tests only; do not infer serving performance from them.
 
 ## Results (measured)
 
-First validated FP16 baseline for `Qwen/Qwen2.5-Coder-7B-Instruct` on a single RunPod H100 80GB
-(vLLM 0.21.0, `--dtype float16`), measured in-pod against direct vLLM. All numbers come from
-committed JSON that passes `scripts/validate_results.py`.
+Validated results for `Qwen/Qwen2.5-Coder-7B-Instruct` on a single RunPod H100 80GB (vLLM 0.21.0),
+measured in-pod against direct vLLM across three precisions. All numbers come from committed JSON
+that passes `scripts/validate_results.py`; output-token counts are **exact**
+(`usage.completion_tokens`).
 
-**Latency / throughput** — [`results/baseline_fp16.json`](results/baseline_fp16.json); 428 requests, 0 errors, streaming, concurrency sweep `{1, 8, 32, 64}`:
+**Latency / throughput / cost** — `results/baseline_{fp16,fp8,awq}.json`; 428 requests each, 0 errors, streaming, concurrency sweep `{1, 8, 32, 64}` (aggregate across the sweep):
 
-| metric | p50 | p95 | p99 |
-| --- | --- | --- | --- |
-| TTFT (s) | 0.171 | 0.776 | 2.77 |
-| end-to-end latency (s) | 1.50 | 2.17 | 2.96 |
-| inter-token latency (ms) | 6.1 | 8.9 | 11.9 |
+| precision | lat p50 (s) | lat p95 (s) | lat p99 (s) | TTFT p50 (s) | ITL p50 (ms) | throughput (tok/s) | $/1M out |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| FP16 | 1.63 | 2.52 | 2.61 | 0.174 | 6.3 | 516 | $1.18 |
+| **FP8** | **1.11** | **1.98** | **2.02** | **0.136** | **4.6** | **737** | **$0.83** |
+| AWQ-INT4 | 1.16 | 2.71 | 2.73 | 0.175 | 4.7 | 692 | $0.88 |
 
-- output throughput **324 tok/s**, request throughput 3.79 rps
-- peak GPU memory **73.6 / 80 GB**
-- cost **$1.89 / 1M output tokens** *(token counts estimated — see caveat)*
-- percentiles are aggregate across the sweep; per-operating-point detail is in `per_workload_metrics` and [`results/pareto.png`](results/pareto.png)
+**Quality** — `results/humaneval_{fp16,fp8,awq}.json`; HumanEval pass@1, 164 problems, single greedy sample each:
 
-**Quality** — [`results/humaneval_fp16.json`](results/humaneval_fp16.json); 164 problems, single greedy sample each:
+| precision | pass@1 | passed |
+| --- | --- | --- |
+| FP16 | 0.878 | 144/164 |
+| FP8 | 0.878 | 144/164 |
+| AWQ-INT4 | 0.872 | 143/164 |
 
-- **HumanEval pass@1 = 0.878 (144/164)** — consistent with the model's published ~88.4% (a sanity check that the sandboxed scorer grades correctly).
+**Takeaways**
+- **FP8 is a near-free win on H100:** +43% throughput, −30% $/1M, −32% p50 latency vs FP16, at **identical** pass@1 (144/164). The recommended serving precision here.
+- **AWQ-INT4 trails FP8** on this hardware: +34% throughput but worse p95/p99 *tail* latency than FP16 and −0.6pp quality. INT4's edge is weight footprint, which doesn't bind for a 7B on 80 GB.
+- **Peak GPU memory is ~73.6 GB for all three** — vLLM reserves its `gpu_memory_utilization` target regardless of weight size, so quantization's freed memory becomes KV-cache headroom (concurrency/context), not lower peak. See [methodology](docs/methodology.md).
+- pass@1 tracks the model's published ~88.4% HumanEval (sanity check on the scorer).
 
-> **Caveat:** throughput and $/1M output tokens rest on a whitespace-based token estimate because the streaming responses returned no `usage.completion_tokens`. Latency, TTFT, ITL, and pass@1 are exact. Reproduce from scratch via [docs/runpod_setup.md](docs/runpod_setup.md).
+Per-operating-point detail is in each file's `per_workload_metrics`; the throughput-vs-latency frontier is plotted in [`results/pareto.png`](results/pareto.png). Reproduce from scratch via [docs/runpod_setup.md](docs/runpod_setup.md).
 
 ## What Exists Now
 
@@ -163,7 +169,7 @@ See [docs/h100_baseline_runbook.md](docs/h100_baseline_runbook.md) for the futur
 
 ## Roadmap
 
-- Tier 1 core: H100 vLLM FP16 baseline (done), FP8, AWQ-Marlin INT4, benchmark JSON, Pareto plot, FastAPI gateway, Prometheus/Grafana, Docker, CI, and writeup.
+- Tier 1 core: H100 vLLM FP16 baseline (done), FP8 (done), AWQ-Marlin INT4 (done), benchmark JSON, Pareto plot, FastAPI gateway, Prometheus/Grafana, Docker, CI, and writeup.
 - Tier 2 ablations: draft-model speculative decoding, conditional EAGLE 3.1 if compatible support exists, prefix caching, acceptance-rate metrics, and side-by-side demo.
 - Tier 3 stretch: SGLang head-to-head and a small upstream contribution to vLLM or SGLang.
 
@@ -173,4 +179,4 @@ FastCoder-Serve is measurement-first. Do not claim latency improvements, through
 
 EAGLE 3.1 is conditional/stretch for this repository. It may require vLLM nightly, current main, or an upcoming v0.22.0 release line plus compatible Qwen2.5-Coder support. If that support is unavailable, draft-model speculative decoding or a documented incompatibility is the correct outcome.
 
-The FP16 baseline milestone is complete and committed under `results/`. The next milestone is the FP8 ablation, then AWQ-Marlin INT4. GPU runs are intentionally not part of local CI or smoke testing.
+FP16, FP8, and AWQ-Marlin INT4 are measured and committed under `results/` with exact token counts. Next is a writeup of the precision frontier and optional Tier-2 ablations (speculative decoding, prefix caching). GPU runs are intentionally not part of local CI or smoke testing.

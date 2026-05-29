@@ -57,6 +57,17 @@ results/manifests/*
 !results/manifests/baseline_fp16_20260529T163110Z.json
 !results/manifests/humaneval_fp16_20260529T163437Z.json
 !results/manifests/humaneval_fp16_20260529T163935Z.json
+# Week 2 quantization ablations (FP8, AWQ-Marlin INT4) — validated, comparable to FP16.
+!results/baseline_fp8.json
+!results/humaneval_fp8.json
+!results/baseline_awq.json
+!results/humaneval_awq.json
+# Manifests for the FP16 re-run (exact tokens) and the Week-2 pod runs (secrets redacted).
+!results/manifests/baseline_fp16_20260529T180752Z.json
+!results/manifests/baseline_fp8_20260529T183449Z.json
+!results/manifests/humaneval_fp8_20260529T183749Z.json
+!results/manifests/baseline_awq_20260529T185010Z.json
+!results/manifests/humaneval_awq_20260529T185340Z.json
 
 # Docker/runtime noise
 *.pid

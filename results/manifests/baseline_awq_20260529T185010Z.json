@@ -1,0 +1,24 @@
+{
+  "schema_version": "0.1",
+  "run_id": "964550fa-0d77-4a5a-a302-bddafb2dad64",
+  "created_at": "2026-05-29T18:50:10.368746+00:00",
+  "git": {
+    "commit_hash": "283f34b38bdb33bc18cac02f8ca05c1dc8819542",
+    "dirty": true
+  },
+  "config_file_path": "configs/baseline_awq.yaml",
+  "config_hash_sha256": "534c74cd7090f734016f6e0c498a7dd9c53f4f8bcd219dd2a1598acc4ca3c588",
+  "python_version": "3.11.13 (main, Jun  4 2025, 08:57:30) [GCC 13.3.0]",
+  "package_version": "0.1.0",
+  "platform": {
+    "system": "Linux",
+    "release": "6.8.0-90-generic",
+    "machine": "x86_64",
+    "platform": "Linux-6.8.0-90-generic-x86_64-with-glibc2.39"
+  },
+  "environment": {
+    "FASTCODER_API_KEY": "***REDACTED***"
+  },
+  "notes": "Confirmed H100 FP16 baseline run",
+  "intended_output_result_path": "results/baseline_awq.json"
+}
