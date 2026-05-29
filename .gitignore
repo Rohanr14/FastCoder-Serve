@@ -47,9 +47,16 @@ results/*
 !results/local_smoke.json
 !results/local_smoke_streaming.json
 !results/pareto.png
+# First measured FP16 baseline + HumanEval pass@1 (validated milestone artifacts).
+!results/baseline_fp16.json
+!results/humaneval_fp16.json
 !results/manifests/
 results/manifests/*
 !results/manifests/.gitkeep
+# Pre-flight manifests for the committed FP16 pod runs (secrets redacted).
+!results/manifests/baseline_fp16_20260529T163110Z.json
+!results/manifests/humaneval_fp16_20260529T163437Z.json
+!results/manifests/humaneval_fp16_20260529T163935Z.json
 
 # Docker/runtime noise
 *.pid

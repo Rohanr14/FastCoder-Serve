@@ -38,7 +38,7 @@ eval = [
 ]
 
 [tool.setuptools.packages.find]
-include = ["fastcoder*"]
+include = ["fastcoder*", "scripts"]
 
 [tool.ruff]
 line-length = 100
