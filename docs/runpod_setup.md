@@ -379,3 +379,120 @@ python scripts/validate_results.py results/baseline_fp16.json
 python scripts/validate_results.py results/humaneval_fp16.json
 # scp results off (see step 8), then TERMINATE the pod.
 ```
+
+---
+
+# Week 2 — Quantization ablations (FP8, then AWQ-Marlin INT4)
+
+Week 2 measures **the same sweep at lower precision** and compares against the committed FP16
+baseline. Reuse the **same pod, SSH, bootstrap, and second shell** from sections 1–6 — only the
+**vLLM launch flag** and the **config files** change. The Week-2 configs are exact mirrors of the
+FP16 ones (identical workloads, concurrency `{1, 8, 32, 64}`, requests, `max_tokens`), so
+`results/baseline_fp8.json` and `results/baseline_awq.json` are directly comparable to
+`results/baseline_fp16.json`.
+
+Configs already in the repo: `configs/baseline_fp8.yaml`, `configs/humaneval_fp8.yaml`,
+`configs/baseline_awq.yaml`, `configs/humaneval_awq.yaml`.
+
+> Run the precisions **one at a time** — one model per GPU, so stop the previous vLLM server before
+> launching the next. Same honesty rules: dry-run first, `--confirm-paid-run` to spend, validate
+> before publishing.
+
+## FP8 (W8A8) — no new download
+
+FP8 here is vLLM **online dynamic quantization** of the FP16 weights, so it reuses the checkpoint
+already cached on your Network Volume — nothing new to download. Relaunch vLLM with
+`--quantization fp8`:
+
+```bash
+tmux attach -t vllm     # Ctrl-c to stop FP16; or: tmux kill-session -t vllm && tmux new -s vllm
+source .venv/bin/activate && export HF_HOME=/workspace/hf
+python -m vllm.entrypoints.openai.api_server --host 0.0.0.0 --port 8000 \
+  --model Qwen/Qwen2.5-Coder-7B-Instruct --quantization fp8 \
+  --served-model-name Qwen/Qwen2.5-Coder-7B-Instruct
+# Ctrl-b d to detach
+```
+
+Then, in the second shell:
+
+```bash
+python scripts/check_endpoint.py --base-url http://127.0.0.1:8000/v1 \
+  --model Qwen/Qwen2.5-Coder-7B-Instruct --timeout-seconds 120 --stream
+
+# latency / throughput
+python scripts/run_h100_baseline.py --config configs/baseline_fp8.yaml \
+  --base-url http://127.0.0.1:8000/v1                      # dry run
+python scripts/run_h100_baseline.py --config configs/baseline_fp8.yaml \
+  --base-url http://127.0.0.1:8000/v1 --confirm-paid-run   # paid
+
+# HumanEval pass@1 (prefix FASTCODER_HUMANEVAL_PATH=... if the dataset isn't auto-detected — see 7b)
+python scripts/run_humaneval_eval.py --config configs/humaneval_fp8.yaml \
+  --base-url http://127.0.0.1:8000/v1                      # dry run
+python scripts/run_humaneval_eval.py --config configs/humaneval_fp8.yaml \
+  --base-url http://127.0.0.1:8000/v1 --confirm-paid-run   # paid
+
+python scripts/validate_results.py results/baseline_fp8.json
+python scripts/validate_results.py results/humaneval_fp8.json
+```
+
+## AWQ-Marlin INT4 — needs a pre-quantized checkpoint
+
+Unlike FP8, AWQ loads a **separate, pre-quantized INT4 checkpoint** (~5–6 GB, downloaded once to the
+Network Volume). **Confirm the model id on Hugging Face before spending** — Qwen publishes official
+AWQ variants (conventionally a `-AWQ` suffix); if one isn't available for this model, self-quantize
+with AutoAWQ. The configs default to `Qwen/Qwen2.5-Coder-7B-Instruct-AWQ`; edit `model:` in both
+`configs/baseline_awq.yaml` and `configs/humaneval_awq.yaml` if the real id differs.
+
+```bash
+tmux attach -t vllm     # stop the FP8 server first
+source .venv/bin/activate && export HF_HOME=/workspace/hf
+python -m vllm.entrypoints.openai.api_server --host 0.0.0.0 --port 8000 \
+  --model Qwen/Qwen2.5-Coder-7B-Instruct-AWQ --quantization awq_marlin --dtype float16 \
+  --served-model-name Qwen/Qwen2.5-Coder-7B-Instruct-AWQ
+# Ctrl-b d to detach
+```
+
+Then run the same flow against the AWQ configs (the `--model` matches the AWQ id):
+
+```bash
+python scripts/check_endpoint.py --base-url http://127.0.0.1:8000/v1 \
+  --model Qwen/Qwen2.5-Coder-7B-Instruct-AWQ --timeout-seconds 120 --stream
+
+python scripts/run_h100_baseline.py --config configs/baseline_awq.yaml \
+  --base-url http://127.0.0.1:8000/v1                      # dry run
+python scripts/run_h100_baseline.py --config configs/baseline_awq.yaml \
+  --base-url http://127.0.0.1:8000/v1 --confirm-paid-run   # paid
+
+python scripts/run_humaneval_eval.py --config configs/humaneval_awq.yaml \
+  --base-url http://127.0.0.1:8000/v1                      # dry run
+python scripts/run_humaneval_eval.py --config configs/humaneval_awq.yaml \
+  --base-url http://127.0.0.1:8000/v1 --confirm-paid-run   # paid
+
+python scripts/validate_results.py results/baseline_awq.json
+python scripts/validate_results.py results/humaneval_awq.json
+```
+
+## Copy off, then compare
+
+Copy the four new JSONs off the pod (same `scp` as step 8) and **terminate the pod**. Back on the
+laptop the three precisions are directly comparable (identical sweep): FP16 vs FP8 vs AWQ-INT4 on
+latency, throughput, peak GPU memory, $/1M tokens, and HumanEval pass@1 — that quality-vs-cost
+frontier is the Week-2 deliverable. Regenerate the Pareto plot over all three:
+
+```bash
+python scripts/generate_pareto.py \
+  results/baseline_fp16.json results/baseline_fp8.json results/baseline_awq.json \
+  --output results/pareto.png
+```
+
+Commit the validated JSONs + manifests the same way as Week 1 (allowlist them in `.gitignore`).
+
+## Week 2 cheat sheet (precision switch only)
+
+Bootstrap is identical to the Week-1 cheat sheet. Per precision: stop the previous vLLM, relaunch
+with the flag(s) below, then run the matching configs (dry → `--confirm-paid-run` → validate).
+
+| precision | vLLM flag(s) | model | configs |
+| --- | --- | --- | --- |
+| FP8 | `--quantization fp8` | `Qwen/Qwen2.5-Coder-7B-Instruct` (reuses FP16 weights) | `baseline_fp8.yaml`, `humaneval_fp8.yaml` |
+| AWQ-INT4 | `--quantization awq_marlin --dtype float16` | `*-AWQ` checkpoint (confirm id) | `baseline_awq.yaml`, `humaneval_awq.yaml` |

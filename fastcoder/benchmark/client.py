@@ -70,6 +70,12 @@ class OpenAICompatibleClient:
             "temperature": temperature,
             "stream": stream,
         }
+        if stream:
+            # Ask for a terminal usage chunk so output-token counts are exact. vLLM only emits
+            # usage on a stream when include_usage is set; without it the client falls back to the
+            # whitespace estimate. Timing is unaffected — the usage chunk carries no content and
+            # arrives just before [DONE].
+            payload["stream_options"] = {"include_usage": True}
         headers = self._headers()
         if stream:
             return await self._streaming_completion(

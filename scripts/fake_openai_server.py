@@ -33,6 +33,7 @@ class ChatCompletionRequest(BaseModel):
     temperature: float = Field(default=0.0, ge=0)
     stream: bool = Field(default=False)
     stream_delay_seconds: float | None = Field(default=None, ge=0)
+    stream_options: dict[str, Any] | None = Field(default=None)
 
     model_config = ConfigDict(extra="ignore")
 
@@ -151,6 +152,23 @@ async def _stream_response(
         "choices": [{"index": 0, "delta": {}, "finish_reason": "stop"}],
     }
     yield f"data: {json.dumps(final_payload)}\n\n"
+
+    if request.stream_options and request.stream_options.get("include_usage"):
+        prompt_tokens = _prompt_tokens(request.messages)
+        completion_tokens = _estimate_tokens(content)
+        usage_payload = {
+            "id": "chatcmpl-fastcoder-fake",
+            "object": "chat.completion.chunk",
+            "created": created,
+            "model": request.model,
+            "choices": [],
+            "usage": {
+                "prompt_tokens": prompt_tokens,
+                "completion_tokens": completion_tokens,
+                "total_tokens": prompt_tokens + completion_tokens,
+            },
+        }
+        yield f"data: {json.dumps(usage_payload)}\n\n"
     yield "data: [DONE]\n\n"
 
 

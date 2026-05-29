@@ -81,6 +81,31 @@ async def test_streaming_benchmark_result_has_ttft_and_itl() -> None:
     assert len(request["chunk_arrival_offsets_seconds"]) >= 2
 
 
+@pytest.mark.asyncio
+async def test_streaming_benchmark_uses_exact_usage_tokens() -> None:
+    fake_port = _free_port()
+    config = BenchmarkConfig(
+        experiment_name="test_streaming_usage",
+        model_server=ModelServerConfig(base_url=f"http://127.0.0.1:{fake_port}/v1"),
+        workloads=["short_chat"],
+        concurrency=[1],
+        requests_per_workload_per_concurrency=1,
+        stream=True,
+    )
+
+    async with _serve(fake_app, fake_port):
+        result = await run_benchmark_config(config)
+
+    aggregate = result["aggregate_metrics"]
+    request = result["per_request_metrics"][0]
+    # With stream_options.include_usage the server returns a terminal usage chunk, so output
+    # tokens are exact (usage-derived), not the whitespace estimate.
+    assert request["output_token_source"] == "usage"
+    assert request["output_token_count_estimated"] is False
+    assert aggregate["output_token_count_estimated"] is False
+    assert aggregate["output_tokens"] > 0
+
+
 @asynccontextmanager
 async def _serve(app: object, port: int) -> AsyncIterator[None]:
     config = uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning")

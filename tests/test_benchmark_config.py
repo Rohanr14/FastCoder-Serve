@@ -68,3 +68,22 @@ def test_load_humaneval_fp16_config_is_single_pass_eval() -> None:
     assert config.temperature == 0.0
     assert config.output_path == Path("results/humaneval_fp16.json")
     assert config.measurement_hypothesis is not None
+
+
+def test_load_week2_quantization_configs() -> None:
+    latency = ["short_chat_256_256", "long_context_4k_512"]
+    expected = {
+        "baseline_fp8": ("fp8", latency, "baseline_fp8"),
+        "humaneval_fp8": ("fp8", ["humaneval"], "humaneval_fp8"),
+        "baseline_awq": ("awq_marlin", latency, "baseline_awq"),
+        "humaneval_awq": ("awq_marlin", ["humaneval"], "humaneval_awq"),
+    }
+    for name, (quantization, workloads, stem) in expected.items():
+        config = load_benchmark_config(Path(f"configs/{name}.yaml"))
+        assert config.experiment_name == name
+        assert config.model_server.model.startswith("Qwen/Qwen2.5-Coder-7B-Instruct")
+        assert config.model_server.quantization == quantization
+        assert config.model_server.dtype == "fp16"
+        assert config.workloads == workloads
+        assert config.output_path == Path(f"results/{stem}.json")
+        assert config.measurement_hypothesis is not None

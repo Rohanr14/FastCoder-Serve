@@ -1,0 +1,52 @@
+# H100 AWQ-Marlin INT4 HumanEval pass@1 evaluation. Single-pass, scored. Mirrors humaneval_fp16.yaml.
+# CONFIRM the AWQ model id on Hugging Face before the paid run. Launch vLLM with:
+# --quantization awq_marlin. Do not run locally.
+experiment_name: humaneval_awq
+model_server:
+  base_url: http://localhost:8000/v1
+  model: Qwen/Qwen2.5-Coder-7B-Instruct-AWQ
+  timeout_seconds: 120
+  quantization: awq_marlin
+  dtype: fp16
+  notes: Single greedy HumanEval generation per problem on an AWQ INT4 server; scored in human_eval's sandboxed subprocess. Confirm the model id on Hugging Face.
+expected_endpoints:
+  direct_vllm: http://localhost:8000/v1
+  gateway: http://localhost:8080/v1
+workloads:
+  - humaneval
+concurrency:
+  - 8
+requests_per_workload_per_concurrency: 1
+max_tokens: 512
+temperature: 0
+stream: true
+output_path: results/humaneval_awq.json
+vllm_version: null
+serving_backend: vllm
+backend_commit: null
+speculative_method: null
+speculative_model: null
+speculative_notes: AWQ-Marlin INT4 HumanEval ablation uses no speculative decoding.
+cost:
+  accelerator_hourly_cost_usd: 2.20
+hardware:
+  gpu_name: NVIDIA H100 80GB HBM3
+  gpu_memory_gb: 80
+  provider: RunPod
+  hourly_cost_usd: 2.20
+software:
+  vllm_version: null
+  serving_backend: vllm
+  backend_commit: null
+speculation:
+  method: null
+  draft_model: null
+  num_speculative_tokens: null
+  acceptance_rate: null
+  notes: AWQ-Marlin INT4 HumanEval ablation uses no speculative decoding.
+measurement_hypothesis: Measure the AWQ-Marlin INT4 HumanEval pass@1 to quantify quality retention versus the FP16 baseline (results/humaneval_fp16.json).
+metadata:
+  local_runnable: "false"
+  warning: Requires a pre-quantized AWQ checkpoint, an H100 vLLM server (--quantization awq_marlin), and the eval extra; executes model-generated code in human_eval's sandbox. CONFIRM the model id before spending. Do not run as local smoke.
+  scoring: pass@1 over the 164 HumanEval problems, one greedy sample each, scored by human_eval.execution.check_correctness; the latency sweep lives in configs/baseline_awq.yaml.
+  concurrency_note: The single concurrency value is only the request parallelism for the one-pass generation; each problem is sampled exactly once.

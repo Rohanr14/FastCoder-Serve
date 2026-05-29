@@ -1,0 +1,58 @@
+# H100 AWQ-Marlin INT4 latency/throughput ablation. Same sweep as baseline_fp16.yaml.
+# AWQ needs a PRE-QUANTIZED INT4 checkpoint (a separate ~5-6 GB download, unlike FP8).
+# CONFIRM the model id on Hugging Face before the paid run: Qwen publishes official AWQ variants
+# (conventionally a `-AWQ` suffix); if unavailable, self-quantize with AutoAWQ. Launch vLLM with:
+# --quantization awq_marlin. Do not run locally.
+experiment_name: baseline_awq
+model_server:
+  base_url: http://localhost:8000/v1
+  model: Qwen/Qwen2.5-Coder-7B-Instruct-AWQ
+  timeout_seconds: 120
+  quantization: awq_marlin
+  dtype: fp16
+  notes: Direct vLLM endpoint serving a pre-quantized AWQ INT4 checkpoint via the Marlin kernel (--quantization awq_marlin). Confirm the model id on Hugging Face.
+expected_endpoints:
+  direct_vllm: http://localhost:8000/v1
+  gateway: http://localhost:8080/v1
+workloads:
+  - short_chat_256_256
+  - long_context_4k_512
+concurrency:
+  - 1
+  - 8
+  - 32
+  - 64
+requests_per_workload_per_concurrency: 50
+max_tokens: 512
+temperature: 0
+stream: true
+output_path: results/baseline_awq.json
+vllm_version: null
+serving_backend: vllm
+backend_commit: null
+speculative_method: null
+speculative_model: null
+speculative_notes: AWQ-Marlin INT4 ablation uses no speculative decoding.
+cost:
+  accelerator_hourly_cost_usd: 2.20
+hardware:
+  gpu_name: NVIDIA H100 80GB HBM3
+  gpu_memory_gb: 80
+  provider: RunPod
+  hourly_cost_usd: 2.20
+software:
+  vllm_version: null
+  serving_backend: vllm
+  backend_commit: null
+speculation:
+  method: null
+  draft_model: null
+  num_speculative_tokens: null
+  acceptance_rate: null
+  notes: AWQ-Marlin INT4 ablation uses no speculative decoding.
+measurement_hypothesis: Measure AWQ-Marlin INT4 latency, throughput, GPU memory, and cost against the FP16 baseline on the identical sweep; quality is measured separately by configs/humaneval_awq.yaml.
+metadata:
+  local_runnable: "false"
+  warning: Requires a pre-quantized AWQ checkpoint and an H100 vLLM server launched with --quantization awq_marlin; CONFIRM the model id before spending. Do not run as local smoke.
+  humaneval: pass@1 quality is measured separately by configs/humaneval_awq.yaml, not in this sweep.
+  comparison: Mirror of configs/baseline_fp16.yaml (same workloads/concurrency/requests) so results/baseline_awq.json is directly comparable to results/baseline_fp16.json.
