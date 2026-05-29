@@ -25,8 +25,8 @@ env/
 *.log
 logs/
 
-# Docs
-docs/
+# Docs are tracked, except the local-only project bible (may hold private notes).
+docs/project_bible.md
 
 # Local OS/editor files
 .DS_Store

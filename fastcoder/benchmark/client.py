@@ -52,8 +52,15 @@ class OpenAICompatibleClient:
         max_tokens: int,
         temperature: float,
         stream: bool,
+        sample_id: str | None = None,
+        capture_text: bool = False,
     ) -> RequestMetric:
-        """Send one chat-completion request and return timing metadata."""
+        """Send one chat-completion request and return timing metadata.
+
+        When ``capture_text`` is true the assembled completion text is attached to the returned
+        metric's ``response_text`` (used by HumanEval scoring). It defaults to false so the latency
+        benchmark path never retains model output.
+        """
 
         request_id = f"{workload}-c{concurrency}-{request_index}"
         payload: dict[str, Any] = {
@@ -70,16 +77,20 @@ class OpenAICompatibleClient:
                 workload=workload,
                 concurrency=concurrency,
                 request_id=request_id,
+                sample_id=sample_id,
                 payload=payload,
                 headers=headers,
+                capture_text=capture_text,
             )
         return await self._non_streaming_completion(
             experiment=experiment,
             workload=workload,
             concurrency=concurrency,
             request_id=request_id,
+            sample_id=sample_id,
             payload=payload,
             headers=headers,
+            capture_text=capture_text,
         )
 
     def _headers(self) -> dict[str, str]:
@@ -95,8 +106,10 @@ class OpenAICompatibleClient:
         workload: str,
         concurrency: int,
         request_id: str,
+        sample_id: str | None,
         payload: Mapping[str, Any],
         headers: Mapping[str, str],
+        capture_text: bool = False,
     ) -> RequestMetric:
         start = time.perf_counter()
         try:
@@ -118,6 +131,7 @@ class OpenAICompatibleClient:
                 None,
                 str(exc),
                 stream=False,
+                sample_id=sample_id,
             )
 
         if response.is_error:
@@ -131,6 +145,7 @@ class OpenAICompatibleClient:
                 response.status_code,
                 response.text[:500],
                 stream=False,
+                sample_id=sample_id,
             )
 
         try:
@@ -146,6 +161,7 @@ class OpenAICompatibleClient:
                 response.status_code,
                 f"invalid JSON response: {exc}",
                 stream=False,
+                sample_id=sample_id,
             )
 
         text = _extract_non_streaming_text(body)
@@ -170,6 +186,8 @@ class OpenAICompatibleClient:
             model=model,
             response_chars=len(text),
             stream=False,
+            sample_id=sample_id,
+            response_text=text if capture_text else None,
         )
 
     async def _streaming_completion(
@@ -179,8 +197,10 @@ class OpenAICompatibleClient:
         workload: str,
         concurrency: int,
         request_id: str,
+        sample_id: str | None,
         payload: Mapping[str, Any],
         headers: Mapping[str, str],
+        capture_text: bool = False,
     ) -> RequestMetric:
         start = time.perf_counter()
         chunks: list[str] = []
@@ -209,6 +229,7 @@ class OpenAICompatibleClient:
                         response.status_code,
                         error_body.decode("utf-8", errors="replace")[:500],
                         stream=True,
+                        sample_id=sample_id,
                     )
                 async for line in response.aiter_lines():
                     event = _extract_streaming_event(line)
@@ -237,6 +258,7 @@ class OpenAICompatibleClient:
                 status_code,
                 str(exc),
                 stream=True,
+                sample_id=sample_id,
             )
 
         end = time.perf_counter()
@@ -259,6 +281,8 @@ class OpenAICompatibleClient:
             response_chars=len(text),
             stream=True,
             chunk_arrival_times=tuple(chunk_arrival_times),
+            sample_id=sample_id,
+            response_text=text if capture_text else None,
         )
 
     def _error_metric(
@@ -273,6 +297,7 @@ class OpenAICompatibleClient:
         error: str,
         *,
         stream: bool = False,
+        sample_id: str | None = None,
     ) -> RequestMetric:
         return RequestMetric(
             experiment=experiment,
@@ -289,6 +314,7 @@ class OpenAICompatibleClient:
             model=self._config.model,
             error=error,
             stream=stream,
+            sample_id=sample_id,
         )
 
 

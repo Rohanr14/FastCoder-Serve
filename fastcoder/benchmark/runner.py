@@ -9,6 +9,7 @@ from typing import Any
 
 from fastcoder.benchmark.client import OpenAICompatibleClient
 from fastcoder.benchmark.config import BenchmarkConfig, load_benchmark_config
+from fastcoder.benchmark.endpoint import fetch_vllm_version
 from fastcoder.benchmark.gpu import collect_gpu_snapshot
 from fastcoder.benchmark.metrics import RequestMetric
 from fastcoder.benchmark.results import build_benchmark_result
@@ -19,6 +20,7 @@ async def run_benchmark_config(config: BenchmarkConfig) -> dict[str, Any]:
     """Run all configured workloads and return a JSON-serializable result object."""
 
     workloads = get_workloads(config.workloads)
+    config = await capture_and_apply_vllm_version(config)
     all_records: list[RequestMetric] = []
     async with OpenAICompatibleClient(config.model_server) as client:
         for workload in workloads:
@@ -53,6 +55,28 @@ async def run_benchmark_file(path: str | Path) -> dict[str, Any]:
     return result
 
 
+async def capture_and_apply_vllm_version(config: BenchmarkConfig) -> BenchmarkConfig:
+    """Read the live server version and fold it into the config.
+
+    The live server is the ground truth for what actually served the requests, so a captured
+    version overrides any config value; a missing ``/version`` route leaves the config as-is.
+    """
+
+    captured_version = await fetch_vllm_version(
+        base_url=config.model_server.base_url,
+        api_key=config.model_server.api_key,
+        timeout_seconds=min(config.model_server.timeout_seconds, 10.0),
+    )
+    return _with_captured_vllm_version(config, captured_version)
+
+
+def _with_captured_vllm_version(config: BenchmarkConfig, version: str | None) -> BenchmarkConfig:
+    if version is None:
+        return config
+    software = config.software.model_copy(update={"vllm_version": version})
+    return config.model_copy(update={"software": software, "vllm_version": version})
+
+
 async def _run_workload_at_concurrency(
     *,
     client: OpenAICompatibleClient,
@@ -62,16 +86,22 @@ async def _run_workload_at_concurrency(
 ) -> list[RequestMetric]:
     semaphore = asyncio.Semaphore(concurrency)
     request_count = max(config.requests_per_workload_per_concurrency, concurrency)
+    samples = workload.samples
+    max_tokens = (
+        config.max_tokens if workload.max_output_tokens is None else workload.max_output_tokens
+    )
 
     async def run_one(request_index: int) -> RequestMetric:
+        sample = samples[request_index % len(samples)]
         async with semaphore:
             return await client.chat_completion(
                 experiment=config.experiment_name,
                 workload=workload.name,
                 concurrency=concurrency,
                 request_index=request_index,
-                messages=workload.messages,
-                max_tokens=config.max_tokens,
+                messages=sample.messages,
+                sample_id=sample.sample_id,
+                max_tokens=max_tokens,
                 temperature=config.temperature,
                 stream=config.stream,
             )

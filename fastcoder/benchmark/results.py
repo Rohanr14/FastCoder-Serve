@@ -90,6 +90,7 @@ class PerWorkloadMetrics(BaseModel):
 
 class PerRequestMetrics(BaseModel):
     request_id: str
+    sample_id: str | None = None
     workload: str
     concurrency: int
     ok: bool
@@ -134,8 +135,13 @@ def build_benchmark_result(
     workloads: list[Workload],
     records: list[RequestMetric],
     gpu_snapshot: GPUSnapshot,
+    humaneval_pass_at_1: float | None = None,
 ) -> BenchmarkResult:
-    """Build a schema-stable benchmark result object."""
+    """Build a schema-stable benchmark result object.
+
+    ``humaneval_pass_at_1`` is populated only by the dedicated single-pass eval run; latency sweeps
+    leave it ``None`` so an unmeasured quality number is never implied.
+    """
 
     hourly_cost = _hourly_cost(config)
     peak_gpu_memory_gb = gpu_snapshot.peak_memory_gb
@@ -143,6 +149,7 @@ def build_benchmark_result(
         records,
         accelerator_hourly_cost_usd=hourly_cost,
         peak_gpu_memory_gb=peak_gpu_memory_gb,
+        humaneval_pass_at_1=humaneval_pass_at_1,
     )
 
     return BenchmarkResult(
@@ -216,6 +223,7 @@ def _per_workload_metrics(
 def _request_metric(record: RequestMetric) -> PerRequestMetrics:
     return PerRequestMetrics(
         request_id=record.request_id,
+        sample_id=record.sample_id,
         workload=record.workload,
         concurrency=record.concurrency,
         ok=record.ok,

@@ -13,8 +13,10 @@ from pathlib import Path
 import httpx
 import pytest
 import uvicorn
+from fastapi import FastAPI
 
 from fastcoder.benchmark.config import BenchmarkConfig
+from fastcoder.benchmark.endpoint import fetch_vllm_version
 from fastcoder.benchmark.gpu import GPUSnapshot
 from fastcoder.benchmark.manifest import REDACTED_VALUE, create_run_manifest, hash_file
 from fastcoder.benchmark.metrics import TOKEN_SOURCE_APPROXIMATE, RequestMetric
@@ -148,6 +150,94 @@ def test_baseline_dry_run_does_not_run_benchmark() -> None:
     assert "DRY RUN" in result.stdout
     assert "Would run:" in result.stdout
     assert "--confirm-paid-run" in result.stdout
+
+
+def test_humaneval_eval_dry_run_does_not_run_or_require_human_eval() -> None:
+    result = _run(
+        [
+            "scripts/run_humaneval_eval.py",
+            "--config",
+            "configs/humaneval_fp16.yaml",
+            "--base-url",
+            "http://127.0.0.1:9/v1",
+        ]
+    )
+
+    assert result.returncode == 0
+    assert "DRY RUN" in result.stdout
+    assert "Would run:" in result.stdout
+    assert "--confirm-paid-run" in result.stdout
+    assert "human_eval" in result.stdout
+
+
+@pytest.mark.asyncio
+async def test_fetch_vllm_version_reads_version_from_live_route() -> None:
+    port = _free_port()
+    async with _serve(_version_app({"version": "0.21.0"}), port):
+        version = await fetch_vllm_version(
+            base_url=f"http://127.0.0.1:{port}/v1",
+            timeout_seconds=5.0,
+        )
+
+    assert version == "0.21.0"
+
+
+@pytest.mark.asyncio
+async def test_fetch_vllm_version_returns_none_when_route_missing() -> None:
+    port = _free_port()
+    async with _serve(fake_app, port):
+        version = await fetch_vllm_version(
+            base_url=f"http://127.0.0.1:{port}/v1",
+            timeout_seconds=5.0,
+        )
+
+    assert version is None
+
+
+@pytest.mark.asyncio
+async def test_fetch_vllm_version_returns_none_on_malformed_payload() -> None:
+    port = _free_port()
+    async with _serve(_version_app({"build": "abc123"}), port):
+        version = await fetch_vllm_version(
+            base_url=f"http://127.0.0.1:{port}/v1",
+            timeout_seconds=5.0,
+        )
+
+    assert version is None
+
+
+def test_workload_preflight_warns_for_humaneval_and_errors_for_unknown(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from fastcoder.benchmark import workloads as workloads_module
+    from scripts import run_h100_baseline
+
+    # Force the no-local-source path so HumanEval resolves to a warning, not an error,
+    # deterministically even where the pod-only human_eval package is installed.
+    monkeypatch.delenv("FASTCODER_HUMANEVAL_PATH", raising=False)
+    monkeypatch.setattr(workloads_module, "_load_humaneval_problems_from_package", lambda: None)
+
+    warnings, errors = run_h100_baseline._resolve_workloads_preflight(
+        ["short_chat_256_256", "humaneval", "does_not_exist"]
+    )
+
+    assert any("humaneval" in warning for warning in warnings)
+    assert any("does_not_exist" in error for error in errors)
+    assert not any("short_chat_256_256" in warning for warning in warnings)
+
+
+def _version_app(version_payload: dict[str, object]) -> FastAPI:
+    app = FastAPI()
+
+    @app.get("/health")
+    async def health() -> dict[str, str]:
+        return {"status": "ok"}
+
+    @app.get("/version")
+    async def version() -> dict[str, object]:
+        return version_payload
+
+    return app
 
 
 def _valid_result_payload() -> dict[str, object]:

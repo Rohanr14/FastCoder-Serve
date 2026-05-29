@@ -31,6 +31,11 @@ dev = [
   "ruff>=0.5",
   "mypy>=1.10",
 ]
+# HumanEval prompts/scoring. Pod-only; never installed in CI. The loader also accepts a local
+# JSONL(.gz) via FASTCODER_HUMANEVAL_PATH, so this extra is optional even on the pod.
+eval = [
+  "human-eval @ git+https://github.com/openai/human-eval.git",
+]
 
 [tool.setuptools.packages.find]
 include = ["fastcoder*"]
@@ -57,7 +62,7 @@ warn_unused_configs = true
 warn_unused_ignores = true
 
 [[tool.mypy.overrides]]
-module = ["matplotlib.*", "prometheus_client.*", "yaml"]
+module = ["matplotlib.*", "prometheus_client.*", "yaml", "human_eval.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

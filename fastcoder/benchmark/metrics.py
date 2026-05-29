@@ -28,12 +28,16 @@ class RequestMetric:
     first_token_time: float | None
     output_tokens: int
     output_token_source: str
+    sample_id: str | None = None
     input_tokens: int | None = None
     model: str = ""
     error: str | None = None
     response_chars: int = 0
     stream: bool = False
     chunk_arrival_times: tuple[float, ...] = ()
+    # Captured only when a caller opts in (e.g. HumanEval scoring). Kept out of to_dict and the
+    # persisted result schema so committed result JSONs never carry raw model output.
+    response_text: str | None = None
 
     @property
     def latency_seconds(self) -> float:
@@ -67,6 +71,7 @@ class RequestMetric:
             "workload": self.workload,
             "concurrency": self.concurrency,
             "request_id": self.request_id,
+            "sample_id": self.sample_id,
             "ok": self.ok,
             "status_code": self.status_code,
             "start_time": self.start_time,

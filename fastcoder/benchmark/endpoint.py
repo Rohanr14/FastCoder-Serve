@@ -69,6 +69,40 @@ async def check_openai_compatible_endpoint(
     return report
 
 
+async def fetch_vllm_version(
+    *,
+    base_url: str,
+    api_key: str | None = None,
+    timeout_seconds: float = 10.0,
+) -> str | None:
+    """Best-effort read of the live server version from vLLM's ``/version`` route.
+
+    Returns the reported version string, or ``None`` when the route is missing,
+    unreachable, or does not report a version. Never raises: an absent ``/version``
+    endpoint must not fail a benchmark run, only leave the field unmeasured.
+    """
+
+    version_url = f"{_origin_url(base_url)}/version"
+    headers = _headers(api_key)
+    try:
+        async with httpx.AsyncClient(timeout=timeout_seconds) as client:
+            response = await client.get(version_url, headers=headers)
+    except httpx.HTTPError:
+        return None
+    if response.is_error:
+        return None
+    try:
+        body = response.json()
+    except json.JSONDecodeError:
+        return None
+    if not isinstance(body, dict):
+        return None
+    version = body.get("version")
+    if isinstance(version, str) and version.strip():
+        return version.strip()
+    return None
+
+
 async def _check_connectivity(client: httpx.AsyncClient, report: EndpointCheckReport) -> None:
     try:
         response = await client.get(_origin_url(report.base_url))

@@ -1,0 +1,50 @@
+# Future H100 FP16 HumanEval pass@1 evaluation. Single-pass, scored. Do not run locally.
+experiment_name: humaneval_fp16
+model_server:
+  base_url: http://localhost:8000/v1
+  model: Qwen/Qwen2.5-Coder-7B-Instruct
+  timeout_seconds: 120
+  quantization: null
+  dtype: fp16
+  notes: Single greedy HumanEval generation per problem; scored in human_eval's sandboxed subprocess.
+expected_endpoints:
+  direct_vllm: http://localhost:8000/v1
+  gateway: http://localhost:8080/v1
+workloads:
+  - humaneval
+concurrency:
+  - 8
+requests_per_workload_per_concurrency: 1
+max_tokens: 512
+temperature: 0
+stream: true
+output_path: results/humaneval_fp16.json
+vllm_version: null
+serving_backend: vllm
+backend_commit: null
+speculative_method: null
+speculative_model: null
+speculative_notes: FP16 HumanEval baseline uses no speculative decoding.
+cost:
+  accelerator_hourly_cost_usd: 2.20
+hardware:
+  gpu_name: NVIDIA H100 80GB HBM3
+  gpu_memory_gb: 80
+  provider: RunPod
+  hourly_cost_usd: 2.20
+software:
+  vllm_version: null
+  serving_backend: vllm
+  backend_commit: null
+speculation:
+  method: null
+  draft_model: null
+  num_speculative_tokens: null
+  acceptance_rate: null
+  notes: FP16 HumanEval baseline uses no speculative decoding.
+measurement_hypothesis: Establish the Qwen2.5-Coder-7B-Instruct FP16 HumanEval pass@1 quality baseline (single greedy sample per problem) alongside the latency/throughput sweep.
+metadata:
+  local_runnable: "false"
+  warning: Requires an H100 vLLM server and the eval extra; executes model-generated code in human_eval's sandbox. Do not run as local smoke.
+  scoring: pass@1 over the 164 HumanEval problems, one greedy sample each, scored by human_eval.execution.check_correctness; the latency sweep lives in configs/baseline_fp16.yaml.
+  concurrency_note: The single concurrency value is only the request parallelism for the one-pass generation; each problem is sampled exactly once.

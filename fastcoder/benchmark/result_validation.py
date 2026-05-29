@@ -107,6 +107,10 @@ def _validate_summary(
         if value is not None and value < 0:
             issues.append(f"{label}.{field_name} must be nonnegative when present")
 
+    pass_at_1 = summary.humaneval_pass_at_1
+    if pass_at_1 is not None and not 0.0 <= pass_at_1 <= 1.0:
+        issues.append(f"{label}.humaneval_pass_at_1 must be within [0, 1] when present")
+
     cost = summary.cost_per_1m_output_tokens_usd
     tps = summary.output_token_throughput_tps
     if cost is not None:

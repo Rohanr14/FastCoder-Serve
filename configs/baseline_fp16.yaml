@@ -11,10 +11,8 @@ expected_endpoints:
   direct_vllm: http://localhost:8000/v1
   gateway: http://localhost:8080/v1
 workloads:
-  - short_chat
-  - code_completion
-  - long_context
-  - humaneval
+  - short_chat_256_256
+  - long_context_4k_512
 concurrency:
   - 1
   - 8
@@ -52,4 +50,4 @@ measurement_hypothesis: Establish the Qwen2.5-Coder-7B-Instruct FP16 quality, la
 metadata:
   local_runnable: "false"
   warning: Requires an explicitly provisioned H100 vLLM server; do not run as local smoke.
-  humaneval: Placeholder only until HumanEval prompt loading/evaluation is implemented.
+  humaneval: pass@1 quality is measured separately by configs/humaneval_fp16.yaml (single-pass, scored), not in this latency/throughput sweep.
