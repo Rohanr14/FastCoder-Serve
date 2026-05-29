@@ -496,3 +496,79 @@ with the flag(s) below, then run the matching configs (dry → `--confirm-paid-r
 | --- | --- | --- | --- |
 | FP8 | `--quantization fp8` | `Qwen/Qwen2.5-Coder-7B-Instruct` (reuses FP16 weights) | `baseline_fp8.yaml`, `humaneval_fp8.yaml` |
 | AWQ-INT4 | `--quantization awq_marlin --dtype float16` | `*-AWQ` checkpoint (confirm id) | `baseline_awq.yaml`, `humaneval_awq.yaml` |
+
+---
+
+# Week 3 — Prefix-caching ablation (FP8)
+
+Week 3 isolates the effect of vLLM **automatic prefix caching** on a workload built to exercise it.
+`shared_prefix_4k_512` shares one fixed ~4K-token module across all requests, with only the trailing
+question varying — the realistic "same codebase / system prompt, many questions" pattern. We run it
+twice on the **FP8** server (the Week-2 winner), toggling only the prefix-caching flag, and compare.
+
+Configs (in the repo): `configs/prefix_cache_on.yaml`, `configs/prefix_cache_off.yaml`.
+
+> Reuses the FP8 path from Week 2 — same weights (no new download), same bootstrap (sections 1–6).
+> **HumanEval is not re-run:** prefix caching reuses KV but does not change outputs, so pass@1 is
+> unchanged by construction. Run the two configs one at a time (one server flag at a time).
+
+## Caching ON
+
+```bash
+tmux attach -t vllm     # stop the previous server first (Ctrl-c), or kill-session and start fresh
+source .venv/bin/activate && export HF_HOME=/workspace/hf
+python -m vllm.entrypoints.openai.api_server --host 0.0.0.0 --port 8000 \
+  --model Qwen/Qwen2.5-Coder-7B-Instruct --quantization fp8 --enable-prefix-caching \
+  --served-model-name Qwen/Qwen2.5-Coder-7B-Instruct
+# Ctrl-b d to detach
+```
+
+```bash
+python scripts/check_endpoint.py --base-url http://127.0.0.1:8000/v1 \
+  --model Qwen/Qwen2.5-Coder-7B-Instruct --timeout-seconds 120 --stream
+python scripts/run_h100_baseline.py --config configs/prefix_cache_on.yaml \
+  --base-url http://127.0.0.1:8000/v1                      # dry run
+python scripts/run_h100_baseline.py --config configs/prefix_cache_on.yaml \
+  --base-url http://127.0.0.1:8000/v1 --confirm-paid-run   # paid
+python scripts/validate_results.py results/prefix_cache_on.json
+```
+
+## Caching OFF (control)
+
+```bash
+tmux attach -t vllm     # stop the ON server first
+source .venv/bin/activate && export HF_HOME=/workspace/hf
+python -m vllm.entrypoints.openai.api_server --host 0.0.0.0 --port 8000 \
+  --model Qwen/Qwen2.5-Coder-7B-Instruct --quantization fp8 --no-enable-prefix-caching \
+  --served-model-name Qwen/Qwen2.5-Coder-7B-Instruct
+# Ctrl-b d to detach
+```
+
+```bash
+python scripts/run_h100_baseline.py --config configs/prefix_cache_off.yaml \
+  --base-url http://127.0.0.1:8000/v1                      # dry run
+python scripts/run_h100_baseline.py --config configs/prefix_cache_off.yaml \
+  --base-url http://127.0.0.1:8000/v1 --confirm-paid-run   # paid
+python scripts/validate_results.py results/prefix_cache_off.json
+```
+
+## Compare
+
+Copy both JSONs off the pod and **terminate**. Then locally:
+
+```bash
+python scripts/slo_analysis.py \
+  "prefix-on=results/prefix_cache_on.json" "prefix-off=results/prefix_cache_off.json"
+```
+
+Expect prefix caching to sharply cut **p50/p99 TTFT** and raise **throughput** on this workload (the
+~4K prefix is computed once and reused across requests), with end-to-end latency and output tokens
+otherwise comparable. Commit the two validated JSONs + manifests (allowlist in `.gitignore`, as in
+Weeks 1–2).
+
+## Week 3 cheat sheet
+
+| run | vLLM flag(s) | config |
+| --- | --- | --- |
+| prefix ON | `--quantization fp8 --enable-prefix-caching` | `prefix_cache_on.yaml` |
+| prefix OFF | `--quantization fp8 --no-enable-prefix-caching` | `prefix_cache_off.yaml` |

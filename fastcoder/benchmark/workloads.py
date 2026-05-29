@@ -9,6 +9,9 @@ Realistic workloads carry many distinct samples so repeated requests do not all 
 identical prompt; that keeps a baseline from accidentally measuring prefix-cache best case.
 Input/output token targets in the workload names are *nominal* — the cited numbers always come
 from the API ``usage`` fields recorded per request, never from these targets.
+
+The ``shared_prefix_4k_512`` workload is the deliberate exception: every sample shares one long
+prefix (only the trailing question varies) so a prefix-caching ablation can measure KV reuse.
 """
 
 from __future__ import annotations
@@ -298,9 +301,61 @@ def _build_long_context_4k_512() -> Workload:
     )
 
 
+_SHARED_PREFIX_DESCRIPTION = (
+    "Prefix-caching workload: one fixed ~4K-token Python module is shared verbatim across all "
+    "samples, with only a short trailing question varying per sample. This is the realistic "
+    "shared-context pattern (same codebase/system prompt, many questions) where vLLM automatic "
+    "prefix caching can reuse the long prefix's KV. Token counts come from API usage."
+)
+
+_SHARED_PREFIX_QUESTIONS = (
+    "Summarize in two sentences what this module is doing.",
+    "Which functions look like near-duplicates that could be merged?",
+    "Name one function whose constant multiplier looks suspiciously large.",
+    "How would you add unit tests for the transforms in this module?",
+    "Which stage would you refactor first for readability, and why?",
+    "Is there any obvious dead code or unreachable branch here?",
+    "How would you parallelize applying every transform to a list of inputs?",
+    "What naming convention do these functions follow, and is it consistent?",
+    "Which function would you benchmark first if throughput mattered?",
+    "How would you document this module for a new teammate?",
+    "What is a safe way to add input validation to these functions?",
+    "Which transform would you cache results for, and how?",
+)
+
+
+def _build_shared_prefix_4k_512() -> Workload:
+    system_message: ChatMessage = {"role": "system", "content": _LONG_CONTEXT_SYSTEM}
+    module, _needle_name, _needle_const = _fake_code_module(seed=0)
+    shared_context = (
+        "Review the module below and answer the question that follows.\n\n"
+        f"```python\n{module}\n```\n\n"
+    )
+    samples: list[WorkloadSample] = []
+    for i in range(_REALISTIC_SAMPLE_POOL):
+        question = _SHARED_PREFIX_QUESTIONS[i % len(_SHARED_PREFIX_QUESTIONS)]
+        # shared_context is byte-identical for every sample; only the trailing question varies,
+        # so the multi-thousand-token prefix is a true shared prefix for vLLM's KV cache.
+        content = f"{shared_context}Question {i}: {question}"
+        user_message: ChatMessage = {"role": "user", "content": content}
+        samples.append(
+            WorkloadSample(
+                messages=(system_message, user_message),
+                sample_id=f"shared_prefix_4k_512/{i}",
+            )
+        )
+    return Workload(
+        name="shared_prefix_4k_512",
+        description=_SHARED_PREFIX_DESCRIPTION,
+        samples=tuple(samples),
+        max_output_tokens=_TARGET_LONG_OUTPUT_TOKENS,
+    )
+
+
 _REALISTIC_BUILDERS: dict[str, Callable[[], Workload]] = {
     "short_chat_256_256": _build_short_chat_256_256,
     "long_context_4k_512": _build_long_context_4k_512,
+    "shared_prefix_4k_512": _build_shared_prefix_4k_512,
 }
 
 

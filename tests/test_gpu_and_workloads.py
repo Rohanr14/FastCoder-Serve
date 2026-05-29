@@ -33,7 +33,11 @@ def test_unknown_workload_reports_available_names() -> None:
 
 def test_realistic_workloads_are_multi_sample_and_token_controlled() -> None:
     workloads = realistic_workloads()
-    assert set(workloads) == {"short_chat_256_256", "long_context_4k_512"}
+    assert set(workloads) == {
+        "short_chat_256_256",
+        "long_context_4k_512",
+        "shared_prefix_4k_512",
+    }
 
     short = workloads["short_chat_256_256"]
     assert short.max_output_tokens == 256
@@ -53,6 +57,18 @@ def test_realistic_workloads_are_multi_sample_and_token_controlled() -> None:
     assert all(sample.sample_id is not None for sample in long.samples)
     # Nominal ~4096-token code prompt; code is token-dense, so bound on characters.
     assert len(long_prompts[0]) > 8000
+
+    shared = workloads["shared_prefix_4k_512"]
+    assert shared.max_output_tokens == 512
+    assert len(shared.samples) >= 8
+    shared_prompts = [sample.messages[-1]["content"] for sample in shared.samples]
+    assert len(set(shared_prompts)) == len(shared_prompts)
+    assert all(sample.sample_id is not None for sample in shared.samples)
+    # Deliberate exception to the no-shared-prefix rule: all samples share one long prefix so the
+    # prefix-caching ablation can measure KV reuse; only the trailing question varies.
+    common_prefix = shared_prompts[0].split("Question")[0]
+    assert len(common_prefix) > 8000
+    assert all(prompt.startswith(common_prefix) for prompt in shared_prompts)
 
 
 def test_get_workloads_resolves_realistic_names_in_order() -> None:

@@ -1,0 +1,55 @@
+# H100 prefix-caching ablation (FP8) — vLLM automatic prefix caching DISABLED (control run).
+# Identical to prefix_cache_on.yaml except for naming/output; the difference that matters is the
+# vLLM launch flag. Launch vLLM with: --quantization fp8 --no-enable-prefix-caching. Do not run locally.
+experiment_name: prefix_cache_off
+model_server:
+  base_url: http://localhost:8000/v1
+  model: Qwen/Qwen2.5-Coder-7B-Instruct
+  timeout_seconds: 120
+  quantization: fp8
+  dtype: fp16
+  notes: FP8 server with vLLM automatic prefix caching DISABLED (--no-enable-prefix-caching).
+expected_endpoints:
+  direct_vllm: http://localhost:8000/v1
+  gateway: http://localhost:8080/v1
+workloads:
+  - shared_prefix_4k_512
+concurrency:
+  - 1
+  - 8
+  - 32
+  - 64
+requests_per_workload_per_concurrency: 50
+max_tokens: 512
+temperature: 0
+stream: true
+output_path: results/prefix_cache_off.json
+vllm_version: null
+serving_backend: vllm
+backend_commit: null
+speculative_method: null
+speculative_model: null
+speculative_notes: Prefix-caching ablation uses no speculative decoding.
+cost:
+  accelerator_hourly_cost_usd: 2.20
+hardware:
+  gpu_name: NVIDIA H100 80GB HBM3
+  gpu_memory_gb: 80
+  provider: RunPod
+  hourly_cost_usd: 2.20
+software:
+  vllm_version: null
+  serving_backend: vllm
+  backend_commit: null
+speculation:
+  method: null
+  draft_model: null
+  num_speculative_tokens: null
+  acceptance_rate: null
+  notes: Prefix-caching ablation uses no speculative decoding.
+measurement_hypothesis: Control run for the prefix-caching ablation — same shared-4K-prefix workload (FP8) with prefix caching DISABLED, to isolate the gain measured by prefix_cache_on.yaml.
+metadata:
+  local_runnable: "false"
+  warning: Requires an H100 FP8 vLLM server launched with --no-enable-prefix-caching; do not run as local smoke.
+  comparison: Compare results/prefix_cache_off.json vs results/prefix_cache_on.json (same workload; prefix caching is the only difference).
+  workload_note: shared_prefix_4k_512 shares one ~4K-token module across all samples (only the trailing question varies); with caching disabled the prefix is recomputed every request.

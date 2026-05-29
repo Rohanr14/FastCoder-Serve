@@ -33,7 +33,7 @@ that passes `scripts/validate_results.py`; output-token counts are **exact**
 - **Peak GPU memory is ~73.6 GB for all three** — vLLM reserves its `gpu_memory_utilization` target regardless of weight size, so quantization's freed memory becomes KV-cache headroom (concurrency/context), not lower peak. See [methodology](docs/methodology.md).
 - pass@1 tracks the model's published ~88.4% HumanEval (sanity check on the scorer).
 
-Per-operating-point detail is in each file's `per_workload_metrics`; the throughput-vs-latency frontier is plotted in [`results/pareto.png`](results/pareto.png). Reproduce from scratch via [docs/runpod_setup.md](docs/runpod_setup.md).
+Per-operating-point detail is in each file's `per_workload_metrics`; the throughput-vs-latency frontier is plotted in [`results/pareto.png`](results/pareto.png). Full analysis — capacity under SLO, FP8-vs-INT4, and deployment guidance — is in [docs/writeup.md](docs/writeup.md). Reproduce from scratch via [docs/runpod_setup.md](docs/runpod_setup.md).
 
 ## What Exists Now
 

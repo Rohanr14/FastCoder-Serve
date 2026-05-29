@@ -87,3 +87,21 @@ def test_load_week2_quantization_configs() -> None:
         assert config.workloads == workloads
         assert config.output_path == Path(f"results/{stem}.json")
         assert config.measurement_hypothesis is not None
+
+
+def test_load_prefix_cache_configs_and_shared_prefix_workload() -> None:
+    for name in ("prefix_cache_on", "prefix_cache_off"):
+        config = load_benchmark_config(Path(f"configs/{name}.yaml"))
+        assert config.experiment_name == name
+        assert config.model_server.quantization == "fp8"
+        assert config.workloads == ["shared_prefix_4k_512"]
+        assert config.output_path == Path(f"results/{name}.json")
+
+    [workload] = get_workloads(["shared_prefix_4k_512"])
+    contents = [sample.messages[-1]["content"] for sample in workload.samples]
+    assert len(contents) >= 8
+    # Every sample diverges only in the trailing question, so they share one long prefix.
+    shared_prefix = contents[0].split("Question")[0]
+    assert len(shared_prefix) > 4000
+    assert all(content.startswith(shared_prefix) for content in contents)
+    assert len(set(contents)) == len(contents)
