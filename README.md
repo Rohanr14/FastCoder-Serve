@@ -36,6 +36,21 @@ that passes `scripts/validate_results.py`; output-token counts are **exact**
 
 Per-operating-point detail is in each file's `per_workload_metrics`; the throughput-vs-latency frontier is plotted in [`results/pareto.png`](results/pareto.png). Full analysis — capacity under SLO, FP8-vs-INT4, and deployment guidance — is in [docs/writeup.md](docs/writeup.md). Reproduce from scratch via [docs/runpod_setup.md](docs/runpod_setup.md).
 
+## Live demo (observability)
+
+One command brings up a **CPU-only** demo of the serving + observability stack — the FastCoder
+gateway in front of a fake OpenAI server, Prometheus scraping it, and a provisioned Grafana
+dashboard, driven by a continuous load generator:
+
+```bash
+docker compose -f docker/docker-compose.yml up --build
+# Grafana (anonymous): http://localhost:3000  ·  Prometheus: http://localhost:9090
+```
+
+Live latency / throughput / error dashboards under load, no GPU. It demonstrates the *system*, not
+H100 performance (the measured numbers live in [results/](results) and [docs/writeup.md](docs/writeup.md)).
+See [docs/observability.md](docs/observability.md).
+
 ## What Exists Now
 
 - Typed Python package scaffold for benchmark, gateway, and plotting code.
