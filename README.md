@@ -30,6 +30,7 @@ that passes `scripts/validate_results.py`; output-token counts are **exact**
 **Takeaways**
 - **FP8 is a near-free win on H100:** +43% throughput, −30% $/1M, −32% p50 latency vs FP16, at **identical** pass@1 (144/164). The recommended serving precision here.
 - **AWQ-INT4 trails FP8** on this hardware: +34% throughput but worse p95/p99 *tail* latency than FP16 and −0.6pp quality. INT4's edge is weight footprint, which doesn't bind for a 7B on 80 GB.
+- **Prefix caching** (shared-context workload, FP8) cut tail TTFT 85% and gave **+163% throughput at concurrency 64** — see the writeup's production recommendations.
 - **Peak GPU memory is ~73.6 GB for all three** — vLLM reserves its `gpu_memory_utilization` target regardless of weight size, so quantization's freed memory becomes KV-cache headroom (concurrency/context), not lower peak. See [methodology](docs/methodology.md).
 - pass@1 tracks the model's published ~88.4% HumanEval (sanity check on the scorer).
 

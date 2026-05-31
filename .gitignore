@@ -68,6 +68,11 @@ results/manifests/*
 !results/manifests/humaneval_fp8_20260529T183749Z.json
 !results/manifests/baseline_awq_20260529T185010Z.json
 !results/manifests/humaneval_awq_20260529T185340Z.json
+# Week 3 prefix-caching ablation (FP8, shared-prefix workload) — validated.
+!results/prefix_cache_on.json
+!results/prefix_cache_off.json
+!results/manifests/prefix_cache_on_20260531T203435Z.json
+!results/manifests/prefix_cache_off_20260531T205510Z.json
 
 # Docker/runtime noise
 *.pid

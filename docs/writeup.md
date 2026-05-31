@@ -20,6 +20,8 @@ reproduce from scratch with [runpod_setup.md](runpod_setup.md).
   at the latency cliff (below).
 - **Long-context (4k) saturates at concurrency 32** for all three precisions — pushing to 64
   *collapses* throughput and spikes TTFT 4–5×. Cap concurrency per workload shape.
+- **Prefix caching is the high-concurrency fix for shared context:** on a shared-4K-prefix workload
+  (FP8), enabling it cut tail TTFT 85% and *more than doubled* throughput at concurrency 64 (+163%).
 
 ## Setup
 
@@ -99,6 +101,33 @@ tok/s) while p99 TTFT jumps to ~1.9–2.6 s — the 4k-token KV footprint oversu
 Short-chat keeps scaling to c64. **Takeaway: set max concurrency by workload shape** — ~32 for
 long-context, higher for short-chat.
 
+## Prefix caching: the high-concurrency fix for shared context
+
+The saturation above is redundant prefill — at high concurrency the server recomputes long prompts
+over and over. When requests **share** a prefix (a fixed system prompt, a pinned codebase/document,
+agent loops — a very common production pattern), vLLM's automatic prefix caching computes that
+prefix once and reuses its KV. To measure the upper bound I built `shared_prefix_4k_512`: one fixed
+~4K-token module shared verbatim across all requests, only the trailing question varying. Same FP8
+server, run with `--enable-prefix-caching` vs `--no-enable-prefix-caching`.
+
+| concurrency | TTFT p50: off → on | throughput: off → on |
+| --- | --- | --- |
+| 1 | 0.139 → 0.059 s (−58%) | 212 → 227 tok/s (+7%) |
+| 8 | 0.154 → 0.071 s (−54%) | 881 → 1,422 tok/s (+61%) |
+| 32 | 0.992 → 0.638 s (−36%) | 1,191 → 2,634 tok/s (+121%) |
+| **64** | **3.26 → 0.75 s (−77%)** | **1,328 → 3,494 tok/s (+163%)** |
+
+Aggregate: tail TTFT (p99) drops **5.98 s → 0.89 s (−85%)**, throughput **+30%**, cost **−23%** — at
+byte-identical outputs (KV reuse doesn't change generation, so HumanEval is unchanged and not
+re-run). **The win scales with concurrency**: the more in-flight requests share the prefix, the more
+redundant prefill caching removes — turning the high-concurrency regime from a liability into a 2.6×
+throughput win.
+
+**Honest scope:** this is the best case (a fully shared 4K prefix). Real gains scale with how much
+prefix is actually shared; a distinct-prompt workload like `long_context_4k_512` sees ~no benefit.
+The rule is simple — enable it whenever traffic has shared prefixes; it costs nothing when it
+doesn't hit.
+
 ## Why FP8 beats INT4 here
 
 - **FP8 has native Hopper tensor-core support** — W8A8 FP8 runs close to the hardware's peak, so it
@@ -117,6 +146,27 @@ frees *weight* memory that becomes additional **KV-cache headroom** (higher max 
 context), not a lower peak reservation. To quantify the memory benefit you would measure max
 concurrency / KV blocks at a fixed utilization, not peak reserved bytes — a good follow-up.
 
+## Production recommendations
+
+Putting the frontier together into "what would I actually deploy?":
+
+- **Precision — default to FP8.** On Hopper it's the free lunch: +43% throughput, −30% cost, lower
+  latency, identical HumanEval pass@1 vs FP16. Use FP16 only to match a reference bit-for-bit or on
+  pre-Hopper GPUs without FP8. Reach for **AWQ-INT4 only when weights don't fit** (bigger models,
+  smaller GPUs) or you need maximum KV headroom — at 7B on 80 GB it loses to FP8 on tail latency for
+  no benefit.
+- **Concurrency — cap by workload shape, not globally.** Short, bounded outputs scale to high
+  concurrency; long-context (large KV) saturates early — here it peaked at **c32** and *regressed*
+  at c64 (throughput down, TTFT up ~5×). Set per-workload limits, or route long-context to its own
+  pool, instead of one global max.
+- **Prefix caching — on by default if traffic shares prefixes.** For shared-context patterns (fixed
+  system prompt, pinned codebase, agent loops) it cut tail TTFT 85% and doubled throughput at high
+  concurrency, and costs nothing when prefixes don't overlap.
+- **Capacity planning — size to an SLO, not to peak throughput.** Pick the latency target first,
+  then read max sustained throughput at it (`scripts/slo_analysis.py`). Under a 250 ms p99 TTFT SLO
+  this stack sustains ~4,800 tok/s on FP8 (~$0.13/1M). A few ms of TTFT can cross an SLO threshold
+  and unlock a much higher operating point, so measure at *your* target, not at headline peak.
+
 ## Limitations
 
 - One model, one GPU, one serving backend (vLLM 0.21.0). No cross-backend (TensorRT-LLM / SGLang)
@@ -124,6 +174,7 @@ concurrency / KV blocks at a fixed utilization, not peak reserved bytes — a go
 - Closed-loop concurrency sweep, not an open-loop arrival-rate / queueing study.
 - Cost assumes $2.20/hr and aggregate throughput; treat $/token as an order-of-magnitude figure.
 - AWQ-INT4 used the official `-AWQ` checkpoint; a different INT4 recipe (e.g. GPTQ) could differ.
+- The prefix-caching result is a shared-prefix upper bound; production gains depend on real overlap.
 
 ## Reproduce
 
