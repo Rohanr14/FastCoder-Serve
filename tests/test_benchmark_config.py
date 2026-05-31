@@ -105,3 +105,19 @@ def test_load_prefix_cache_configs_and_shared_prefix_workload() -> None:
     assert len(shared_prefix) > 4000
     assert all(content.startswith(shared_prefix) for content in contents)
     assert len(set(contents)) == len(contents)
+
+
+def test_load_speculative_decoding_configs() -> None:
+    expected = {
+        "spec_draft_fp8": ("draft", "Qwen/Qwen2.5-Coder-0.5B-Instruct"),
+        "spec_ngram_fp8": ("ngram", None),
+    }
+    for name, (method, draft_model) in expected.items():
+        config = load_benchmark_config(Path(f"configs/{name}.yaml"))
+        assert config.experiment_name == name
+        assert config.model_server.quantization == "fp8"
+        assert config.workloads == ["short_chat_256_256", "long_context_4k_512"]
+        assert config.output_path == Path(f"results/{name}.json")
+        assert config.speculation.method == method
+        assert config.speculation.draft_model == draft_model
+        assert config.speculation.num_speculative_tokens == 5

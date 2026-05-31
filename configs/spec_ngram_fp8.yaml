@@ -1,0 +1,58 @@
+# H100 speculative-decoding ablation (FP8) — N-GRAM / prompt-lookup speculation (no draft model).
+# Proposes continuations by matching recent context n-grams; cheap and often strong on repetitive code.
+# Same sweep as baseline_fp8.yaml so results/spec_ngram_fp8.json is directly comparable. Spec-decode
+# flag syntax varies by vLLM version; confirm against `vllm serve --help` (Week 4 of docs/runpod_setup.md).
+# Do not run locally.
+experiment_name: spec_ngram_fp8
+model_server:
+  base_url: http://localhost:8000/v1
+  model: Qwen/Qwen2.5-Coder-7B-Instruct
+  timeout_seconds: 120
+  quantization: fp8
+  dtype: fp16
+  notes: FP8 target with n-gram (prompt-lookup) speculative decoding; no draft model.
+expected_endpoints:
+  direct_vllm: http://localhost:8000/v1
+  gateway: http://localhost:8080/v1
+workloads:
+  - short_chat_256_256
+  - long_context_4k_512
+concurrency:
+  - 1
+  - 8
+  - 32
+  - 64
+requests_per_workload_per_concurrency: 50
+max_tokens: 512
+temperature: 0
+stream: true
+output_path: results/spec_ngram_fp8.json
+vllm_version: null
+serving_backend: vllm
+backend_commit: null
+speculative_method: ngram
+speculative_model: null
+speculative_notes: N-gram / prompt-lookup speculative decoding; 5 speculative tokens per step.
+cost:
+  accelerator_hourly_cost_usd: 2.20
+hardware:
+  gpu_name: NVIDIA H100 80GB HBM3
+  gpu_memory_gb: 80
+  provider: RunPod
+  hourly_cost_usd: 2.20
+software:
+  vllm_version: null
+  serving_backend: vllm
+  backend_commit: null
+speculation:
+  method: ngram
+  draft_model: null
+  num_speculative_tokens: 5
+  acceptance_rate: null
+  notes: Acceptance rate is read from vLLM /metrics after the run (scripts/capture_spec_acceptance.py) and recorded in methodology; null until measured.
+measurement_hypothesis: Measure whether n-gram/prompt-lookup speculative decoding lowers latency/ITL versus baseline_fp8 (no draft model needed), and how acceptance and the gain vary with concurrency.
+metadata:
+  local_runnable: "false"
+  warning: Requires an H100 FP8 vLLM server launched with n-gram speculative decoding; do not run as local smoke.
+  comparison: Compare results/spec_ngram_fp8.json vs results/baseline_fp8.json (same workloads/sweep; speculation is the only difference).
+  acceptance_note: Spec decoding does not change outputs (verified tokens), so HumanEval quality is unchanged and not re-run.

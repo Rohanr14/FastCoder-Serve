@@ -572,3 +572,101 @@ Weeks 1–2).
 | --- | --- | --- |
 | prefix ON | `--quantization fp8 --enable-prefix-caching` | `prefix_cache_on.yaml` |
 | prefix OFF | `--quantization fp8 --no-enable-prefix-caching` | `prefix_cache_off.yaml` |
+
+---
+
+# Week 4 — Speculative decoding (FP8)
+
+Week 4 measures speculative decoding on the **FP8** server (the Week-2 winner), comparing against
+`baseline_fp8.json` on the identical sweep. Two methods:
+
+- **Draft-model** — a small `Qwen2.5-Coder-0.5B-Instruct` proposes tokens the 7B verifies (same
+  tokenizer family, required). Separate ~1 GB draft download.
+- **N-gram / prompt-lookup** — proposes from recent-context n-grams, no draft model; often strong on
+  repetitive code.
+
+Configs: `configs/spec_draft_fp8.yaml`, `configs/spec_ngram_fp8.yaml`.
+
+> Spec decoding does not change outputs (drafts are *verified*), so HumanEval quality is unchanged
+> and not re-run. The headline metrics are **ITL / latency vs concurrency** and **acceptance rate**.
+> Run one method at a time.
+>
+> **⚠️ Spec-decode flag syntax varies by vLLM version.** Confirm the exact form for your build first:
+> `python -m vllm.entrypoints.openai.api_server --help | grep -i spec`. The commands below are the
+> common forms; adjust if your 0.21.0 differs.
+
+## Draft-model speculative decoding
+
+```bash
+tmux attach -t vllm     # stop the previous server first
+source .venv/bin/activate && export HF_HOME=/workspace/hf
+python -m vllm.entrypoints.openai.api_server --host 0.0.0.0 --port 8000 \
+  --model Qwen/Qwen2.5-Coder-7B-Instruct --quantization fp8 \
+  --served-model-name Qwen/Qwen2.5-Coder-7B-Instruct \
+  --speculative-config '{"model": "Qwen/Qwen2.5-Coder-0.5B-Instruct", "num_speculative_tokens": 5}'
+# older vLLM form: --speculative-model Qwen/Qwen2.5-Coder-0.5B-Instruct --num-speculative-tokens 5
+# Ctrl-b d to detach
+```
+
+```bash
+python scripts/check_endpoint.py --base-url http://127.0.0.1:8000/v1 \
+  --model Qwen/Qwen2.5-Coder-7B-Instruct --timeout-seconds 120 --stream
+python scripts/run_h100_baseline.py --config configs/spec_draft_fp8.yaml \
+  --base-url http://127.0.0.1:8000/v1                      # dry run
+python scripts/run_h100_baseline.py --config configs/spec_draft_fp8.yaml \
+  --base-url http://127.0.0.1:8000/v1 --confirm-paid-run   # paid
+# while the server is still up, read drafted-token acceptance:
+python scripts/capture_spec_acceptance.py --base-url http://127.0.0.1:8000/v1
+python scripts/validate_results.py results/spec_draft_fp8.json
+```
+
+## N-gram speculative decoding
+
+```bash
+tmux attach -t vllm     # stop the draft server first
+source .venv/bin/activate && export HF_HOME=/workspace/hf
+python -m vllm.entrypoints.openai.api_server --host 0.0.0.0 --port 8000 \
+  --model Qwen/Qwen2.5-Coder-7B-Instruct --quantization fp8 \
+  --served-model-name Qwen/Qwen2.5-Coder-7B-Instruct \
+  --speculative-config '{"method": "ngram", "num_speculative_tokens": 5, "prompt_lookup_max": 4}'
+# Ctrl-b d to detach
+```
+
+```bash
+python scripts/run_h100_baseline.py --config configs/spec_ngram_fp8.yaml \
+  --base-url http://127.0.0.1:8000/v1                      # dry run
+python scripts/run_h100_baseline.py --config configs/spec_ngram_fp8.yaml \
+  --base-url http://127.0.0.1:8000/v1 --confirm-paid-run   # paid
+python scripts/capture_spec_acceptance.py --base-url http://127.0.0.1:8000/v1
+python scripts/validate_results.py results/spec_ngram_fp8.json
+```
+
+## Compare + record acceptance
+
+Copy the JSONs off, **terminate**, then locally:
+
+```bash
+python scripts/slo_analysis.py \
+  "fp8=results/baseline_fp8.json" "draft=results/spec_draft_fp8.json" "ngram=results/spec_ngram_fp8.json"
+```
+
+Record the acceptance from `capture_spec_acceptance.py` into each result's
+`speculation.acceptance_rate` and `docs/methodology.md`. Expect spec decoding to **cut ITL/latency at
+low concurrency** but the gain to shrink — possibly reverse — as concurrency saturates the GPU
+(verification has no spare compute to exploit). That concurrency crossover + acceptance is the result.
+
+## EAGLE-3 (stretch — may not be feasible)
+
+EAGLE-3 needs an EAGLE head trained for this exact target. There may be no public EAGLE-3 checkpoint
+for `Qwen2.5-Coder-7B-Instruct`, and vLLM 0.21.0 support is unconfirmed — so a **documented
+incompatibility** ("no compatible EAGLE head available; used draft-model spec decoding instead") is a
+valid, honest outcome. If a head exists, point `--speculative-config` at it
+(`{"method": "eagle", "model": "<eagle-head>", ...}`) and add `spec_eagle_fp8.yaml` mirroring the
+draft config.
+
+## Week 4 cheat sheet
+
+| run | vLLM speculative flag (confirm syntax) | config |
+| --- | --- | --- |
+| draft-model | `--speculative-config '{"model":"Qwen/Qwen2.5-Coder-0.5B-Instruct","num_speculative_tokens":5}'` | `spec_draft_fp8.yaml` |
+| n-gram | `--speculative-config '{"method":"ngram","num_speculative_tokens":5,"prompt_lookup_max":4}'` | `spec_ngram_fp8.yaml` |
