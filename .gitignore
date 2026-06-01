@@ -73,6 +73,11 @@ results/manifests/*
 !results/prefix_cache_off.json
 !results/manifests/prefix_cache_on_20260531T203435Z.json
 !results/manifests/prefix_cache_off_20260531T205510Z.json
+# Week 4 speculative-decoding ablation (FP8) — validated negative result.
+!results/spec_draft_fp8.json
+!results/spec_ngram_fp8.json
+!results/manifests/spec_draft_fp8_20260531T230310Z.json
+!results/manifests/spec_ngram_fp8_20260531T231434Z.json
 
 # Docker/runtime noise
 *.pid

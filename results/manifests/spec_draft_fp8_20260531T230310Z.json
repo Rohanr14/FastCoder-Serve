@@ -1,0 +1,24 @@
+{
+  "schema_version": "0.1",
+  "run_id": "ec499d9d-8e58-4c91-9982-7329218f2c6c",
+  "created_at": "2026-05-31T23:03:10.320054+00:00",
+  "git": {
+    "commit_hash": "07efae30783bb5f5c806185a336adc588f4cc594",
+    "dirty": true
+  },
+  "config_file_path": "configs/spec_draft_fp8.yaml",
+  "config_hash_sha256": "fba404fdd64822c899675e7a2f14b7ff26215b9c885b053a6883a28b59332b4f",
+  "python_version": "3.11.13 (main, Jun  4 2025, 08:57:30) [GCC 13.3.0]",
+  "package_version": "0.1.0",
+  "platform": {
+    "system": "Linux",
+    "release": "6.8.0-90-generic",
+    "machine": "x86_64",
+    "platform": "Linux-6.8.0-90-generic-x86_64-with-glibc2.39"
+  },
+  "environment": {
+    "FASTCODER_API_KEY": "***REDACTED***"
+  },
+  "notes": "Confirmed H100 FP16 baseline run",
+  "intended_output_result_path": "results/spec_draft_fp8.json"
+}
