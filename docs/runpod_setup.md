@@ -670,3 +670,101 @@ draft config.
 | --- | --- | --- |
 | draft-model | `--speculative-config '{"model":"Qwen/Qwen2.5-Coder-0.5B-Instruct","num_speculative_tokens":5}'` | `spec_draft_fp8.yaml` |
 | n-gram | `--speculative-config '{"method":"ngram","num_speculative_tokens":5,"prompt_lookup_max":4}'` | `spec_ngram_fp8.yaml` |
+
+---
+
+# Week 5 — Cross-backend study (vLLM vs SGLang)
+
+Week 5 answers "which serving *engine* is faster?" by running the **same model, sweep, and precision
+on SGLang** and comparing to the committed vLLM results. SGLang exposes an OpenAI-compatible API, so
+the FastCoder runner is unchanged — only the server differs (and the configs record
+`serving_backend: sglang`).
+
+Configs: `configs/baseline_sglang_fp16.yaml`, `configs/baseline_sglang_fp8.yaml`,
+`configs/humaneval_sglang_fp8.yaml` (compare to `baseline_fp16`, `baseline_fp8`, `humaneval_fp8`).
+
+> **Separate venv.** SGLang and vLLM pin conflicting torch/flashinfer versions — install SGLang in
+> its **own** venv and keep the FastCoder client in the main `.venv`. SGLang reuses the HF weight
+> cache on the Network Volume (no new download for FP16; FP8 is online quantization).
+>
+> **⚠️ SGLang flags differ from vLLM** (`--model-path`, `--quantization`, `--context-length`) and
+> vary by version — confirm with `python -m sglang.launch_server --help`. `vllm_version` is null for
+> these runs (SGLang has no `/version`); record the SGLang version in `docs/methodology.md`.
+
+## Install SGLang (one-time, separate venv)
+
+```bash
+cd /workspace/FastCoder-Serve
+python3.11 -m venv .venv-sglang
+source .venv-sglang/bin/activate
+pip install "sglang[all]"
+python -c "import sglang; print('sglang', sglang.__version__)"   # record this version
+deactivate
+```
+
+## Serve with SGLang + run the benchmark
+
+Launch SGLang from its venv (FP8 shown; drop `--quantization fp8` for the FP16 run):
+
+```bash
+tmux attach -t vllm     # stop any vLLM server first (one engine per GPU/port)
+source .venv-sglang/bin/activate && export HF_HOME=/workspace/hf
+python -m sglang.launch_server \
+  --model-path Qwen/Qwen2.5-Coder-7B-Instruct \
+  --served-model-name Qwen/Qwen2.5-Coder-7B-Instruct \
+  --host 0.0.0.0 --port 8000 --context-length 4096 \
+  --quantization fp8
+# Ctrl-b d to detach
+```
+
+Run the benchmark from the **main** venv (the FastCoder client only needs httpx):
+
+```bash
+source .venv/bin/activate
+python scripts/check_endpoint.py --base-url http://127.0.0.1:8000/v1 \
+  --model Qwen/Qwen2.5-Coder-7B-Instruct --timeout-seconds 120 --stream
+
+# FP8 latency/throughput (dry run, then paid)
+python scripts/run_h100_baseline.py --config configs/baseline_sglang_fp8.yaml \
+  --base-url http://127.0.0.1:8000/v1
+python scripts/run_h100_baseline.py --config configs/baseline_sglang_fp8.yaml \
+  --base-url http://127.0.0.1:8000/v1 --confirm-paid-run
+
+# FP8 HumanEval (quality parity; dry run first without the flag)
+python scripts/run_humaneval_eval.py --config configs/humaneval_sglang_fp8.yaml \
+  --base-url http://127.0.0.1:8000/v1 --confirm-paid-run
+
+python scripts/validate_results.py results/baseline_sglang_fp8.json
+python scripts/validate_results.py results/humaneval_sglang_fp8.json
+```
+
+For the clean no-quant comparison, restart SGLang **without** `--quantization fp8` and run
+`configs/baseline_sglang_fp16.yaml` the same way.
+
+## Compare
+
+Copy the JSONs off, **terminate**, then compare each engine head-to-head locally:
+
+```bash
+python scripts/slo_analysis.py \
+  "vllm-fp8=results/baseline_fp8.json" "sglang-fp8=results/baseline_sglang_fp8.json"
+python scripts/slo_analysis.py \
+  "vllm-fp16=results/baseline_fp16.json" "sglang-fp16=results/baseline_sglang_fp16.json"
+```
+
+Send me the four JSONs and I'll fold the engine comparison into the writeup. The interesting story is
+usually *where* on the concurrency curve each engine wins (SGLang's RadixAttention vs vLLM's
+scheduler), plus confirmed pass@1 parity (same greedy outputs, different engine).
+
+## TensorRT-LLM (stretch)
+
+A third engine (TensorRT-LLM via `trtllm-serve`) would strengthen it further, but it needs an
+engine-build step (not just a launch flag), so it's a larger lift — optional after vLLM-vs-SGLang.
+
+## Week 5 cheat sheet
+
+| engine | launch (confirm flags) | configs |
+| --- | --- | --- |
+| vLLM (done) | `python -m vllm.entrypoints.openai.api_server --quantization fp8 ...` | `baseline_fp8.yaml` |
+| SGLang FP8 | `python -m sglang.launch_server --model-path ... --quantization fp8 ...` | `baseline_sglang_fp8.yaml`, `humaneval_sglang_fp8.yaml` |
+| SGLang FP16 | `python -m sglang.launch_server --model-path ...` (no quant flag) | `baseline_sglang_fp16.yaml` |

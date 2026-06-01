@@ -1,0 +1,56 @@
+# H100 cross-backend study — SGLang serving FP16, SAME sweep as vLLM's baseline_fp16.yaml.
+# The clean no-quantization engine-vs-engine comparison. SGLang exposes an OpenAI-compatible API, so
+# the benchmark runner is unchanged. See Week 5 of docs/runpod_setup.md. Do not run locally.
+experiment_name: baseline_sglang_fp16
+model_server:
+  base_url: http://localhost:8000/v1
+  model: Qwen/Qwen2.5-Coder-7B-Instruct
+  timeout_seconds: 120
+  quantization: null
+  dtype: fp16
+  notes: SGLang OpenAI-compatible server serving FP16 (python -m sglang.launch_server, no quantization).
+expected_endpoints:
+  direct_vllm: http://localhost:8000/v1
+  gateway: http://localhost:8080/v1
+workloads:
+  - short_chat_256_256
+  - long_context_4k_512
+concurrency:
+  - 1
+  - 8
+  - 32
+  - 64
+requests_per_workload_per_concurrency: 50
+max_tokens: 512
+temperature: 0
+stream: true
+output_path: results/baseline_sglang_fp16.json
+vllm_version: null
+serving_backend: sglang
+backend_commit: null
+speculative_method: null
+speculative_model: null
+speculative_notes: Cross-backend study uses no speculative decoding.
+cost:
+  accelerator_hourly_cost_usd: 2.20
+hardware:
+  gpu_name: NVIDIA H100 80GB HBM3
+  gpu_memory_gb: 80
+  provider: RunPod
+  hourly_cost_usd: 2.20
+software:
+  vllm_version: null
+  serving_backend: sglang
+  backend_commit: null
+speculation:
+  method: null
+  draft_model: null
+  num_speculative_tokens: null
+  acceptance_rate: null
+  notes: Cross-backend study uses no speculative decoding.
+measurement_hypothesis: Compare SGLang vs vLLM (results/baseline_fp16.json) serving FP16 Qwen2.5-Coder-7B on the identical H100 sweep, with no quantization variable.
+metadata:
+  local_runnable: "false"
+  warning: Requires an H100 running an SGLang FP16 server (separate venv); do not run as local smoke.
+  comparison: Compare results/baseline_sglang_fp16.json vs results/baseline_fp16.json (vLLM). Same model/sweep/precision; only the serving engine differs.
+  backend_version_note: SGLang has no /version route, so vllm_version stays null. Record the SGLang version (python -c "import sglang; print(sglang.__version__)") in docs/methodology.md.

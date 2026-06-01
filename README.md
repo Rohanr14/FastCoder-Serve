@@ -1,8 +1,28 @@
 # FastCoder-Serve
 
-FastCoder-Serve is a production-grade inference serving and measurement project for code LLMs. The target system will benchmark Qwen2.5-Coder-7B-Instruct on a single H100 with vLLM across FP16, FP8, AWQ-Marlin INT4, and later conditional speculative-decoding or prefix-caching ablations, then publish latency, throughput, quality, memory, and cost Pareto curves.
+[![CI](https://github.com/Rohanr14/FastCoder-Serve/actions/workflows/ci.yml/badge.svg)](https://github.com/Rohanr14/FastCoder-Serve/actions/workflows/ci.yml)
+[![PyPI](https://img.shields.io/pypi/v/fastcoder-serve.svg)](https://pypi.org/project/fastcoder-serve/)
+[![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
-**Current status:** FP16, FP8, and AWQ-Marlin INT4 are all measured and committed on a single H100 (vLLM 0.21.0, Qwen2.5-Coder-7B-Instruct) with exact token counts. See [Results (measured)](#results-measured) — headline: **FP8 gives ~+43% throughput and −30% cost at identical HumanEval pass@1**. Smoke paths in this repo are harness tests only; do not infer serving performance from them.
+**An honest benchmarking + serving stack for code LLMs.** Point it at any OpenAI-compatible endpoint
+and get a *validated* latency / throughput / quality / cost Pareto with SLO-based capacity analysis —
+**no number is reported unless it comes from a schema-checked result file** with exact token counts
+and a reproducibility manifest. Most LLM benchmarks are unfalsifiable; this one isn't.
+
+It ships with a real study: serving **Qwen2.5-Coder-7B-Instruct** on a single **H100 80GB** with
+vLLM across FP16 / FP8 / AWQ-INT4, plus prefix-caching and speculative-decoding ablations. **Headline:
+FP8 is a near-free win (+43% throughput, −30% cost, identical HumanEval pass@1); speculative decoding
+made it _worse_.** Full analysis → **[docs/writeup.md](docs/writeup.md)**.
+
+```bash
+pip install fastcoder-serve
+fastcoder endpoint --base-url http://localhost:8000/v1 --model your-model --stream
+fastcoder bench    --config configs/local_smoke.yaml      # writes a validated result JSON
+fastcoder slo      "mine=results/local_smoke.json"        # max throughput under a p99 TTFT SLO
+```
+
+![FastCoder-Serve: output throughput vs latency across FP16 / FP8 / AWQ-INT4 on one H100](https://raw.githubusercontent.com/Rohanr14/FastCoder-Serve/main/results/pareto.png)
 
 ## Results (measured)
 
@@ -67,17 +87,6 @@ fastcoder slo      "mine=results/local_smoke.json"
 ```
 
 Subcommands: `endpoint`, `config`, `bench`, `validate`, `slo`, `pareto`. See [docs/tool.md](docs/tool.md).
-
-## What Exists Now
-
-- Typed Python package scaffold for benchmark, gateway, and plotting code.
-- CPU-safe fake OpenAI-compatible server for local non-streaming and SSE streaming smoke tests.
-- Config-driven benchmark harness targeting any OpenAI-compatible `/v1/chat/completions` endpoint, including streamed TTFT and ITL timing.
-- FastAPI gateway skeleton with bearer auth, local in-memory rate limiting, true streaming pass-through, structured logs, and Prometheus metrics.
-- Stable benchmark result schema version `0.1`.
-- Result metadata for serving backend, backend commit, vLLM version, and speculative-decoding settings.
-- H100 FP16 baseline + HumanEval eval, executed on an H100 and committed under `results/`.
-- Placeholder Docker, Prometheus, Grafana, CI, and methodology files.
 
 ## Architecture
 
@@ -193,18 +202,6 @@ Benchmark outputs under `results/*.json` use schema version `0.1` with these top
 
 Unavailable local-only metrics such as GPU memory and HumanEval pass@1 are `null`. Estimated token counts are explicitly marked in the metrics.
 
-## Methodology Stub
-
-The final benchmark will report p50/p95/p99 TTFT, inter-token latency, throughput, GPU memory, HumanEval pass@1, and cost per million output tokens across concurrency levels `{1, 8, 32, 64}`. Local smoke tests only validate harness mechanics and do not represent real serving performance.
-
-See [docs/methodology.md](docs/methodology.md) for the evolving methodology notes.
-See [docs/h100_baseline_runbook.md](docs/h100_baseline_runbook.md) for the future FP16 H100 baseline procedure.
-
-## Roadmap
-
-- Tier 1 core: H100 vLLM FP16 baseline (done), FP8 (done), AWQ-Marlin INT4 (done), benchmark JSON, Pareto plot, FastAPI gateway, Prometheus/Grafana, Docker, CI, and writeup.
-- Tier 2 ablations: draft-model speculative decoding, conditional EAGLE 3.1 if compatible support exists, prefix caching, acceptance-rate metrics, and side-by-side demo.
-- Tier 3 stretch: SGLang head-to-head and a small upstream contribution to vLLM or SGLang.
 
 ## Honesty Policy
 

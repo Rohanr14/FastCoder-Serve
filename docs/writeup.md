@@ -22,6 +22,9 @@ reproduce from scratch with [runpod_setup.md](runpod_setup.md).
   *collapses* throughput and spikes TTFT 4–5×. Cap concurrency per workload shape.
 - **Prefix caching is the high-concurrency fix for shared context:** on a shared-4K-prefix workload
   (FP8), enabling it cut tail TTFT 85% and *more than doubled* throughput at concurrency 64 (+163%).
+- **Speculative decoding made it *worse*, not better:** draft-model and n-gram both *raised* latency
+  (ITL 7× worse even at concurrency 1) and cut throughput up to 10×. A fast 7B on a compute-rich H100
+  has no latency to recover — speculation is for slow/large models at low QPS.
 
 ## Setup
 
@@ -146,6 +149,30 @@ frees *weight* memory that becomes additional **KV-cache headroom** (higher max 
 context), not a lower peak reservation. To quantify the memory benefit you would measure max
 concurrency / KV blocks at a fixed utilization, not peak reserved bytes — a good follow-up.
 
+## Speculative decoding: a negative result
+
+Speculative decoding — a small draft model (here `Qwen2.5-Coder-0.5B`), or n-gram/prompt-lookup,
+proposes tokens the target verifies — is supposed to cut latency. On this setup it **hurt across the
+board.** Same FP8 server, same sweep, versus `baseline_fp8`:
+
+| short_chat | ITL p50: FP8 → draft → n-gram | throughput: FP8 → draft → n-gram |
+| --- | --- | --- |
+| c1 | 4.1 → 29.7 → 5.3 ms | 241 → 101 → 193 tok/s |
+| c64 | 5.2 → 62.2 → 92.7 ms | 9,204 → 2,324 → 912 tok/s |
+
+The tell is **concurrency 1**, where speculation is *supposed* to win: draft ITL is **7× worse**
+(29.7 vs 4.1 ms). On an H100 the 7B target already decodes at ~4 ms/token, so there's almost no
+latency to recover — and the draft + verification add more overhead than they save. At high
+concurrency it's worse: batching already saturates the GPU, so drafting/verifying is pure overhead
+and throughput collapses up to **10×**.
+
+(Acceptance rate would sharpen the explanation, but I couldn't capture it cleanly — vLLM's
+spec-decode counters read zero at capture time, against a by-then-idle server. The latency and
+throughput data make the case on their own.)
+
+**Takeaway:** speculative decoding is for **latency-bound, low-QPS serving of slow or large models** —
+not a compute-rich H100 batching a fast 7B. Knowing when *not* to reach for a technique is the point.
+
 ## Production recommendations
 
 Putting the frontier together into "what would I actually deploy?":
@@ -162,6 +189,9 @@ Putting the frontier together into "what would I actually deploy?":
 - **Prefix caching — on by default if traffic shares prefixes.** For shared-context patterns (fixed
   system prompt, pinned codebase, agent loops) it cut tail TTFT 85% and doubled throughput at high
   concurrency, and costs nothing when prefixes don't overlap.
+- **Speculative decoding — skip it for this profile.** Draft-model and n-gram both hurt here (the
+  target is already fast and batching saturates compute). Reserve it for latency-bound, low-QPS
+  serving of slow or large models.
 - **Capacity planning — size to an SLO, not to peak throughput.** Pick the latency target first,
   then read max sustained throughput at it (`scripts/slo_analysis.py`). Under a 250 ms p99 TTFT SLO
   this stack sustains ~4,800 tok/s on FP8 (~$0.13/1M). A few ms of TTFT can cross an SLO threshold
@@ -175,6 +205,8 @@ Putting the frontier together into "what would I actually deploy?":
 - Cost assumes $2.20/hr and aggregate throughput; treat $/token as an order-of-magnitude figure.
 - AWQ-INT4 used the official `-AWQ` checkpoint; a different INT4 recipe (e.g. GPTQ) could differ.
 - The prefix-caching result is a shared-prefix upper bound; production gains depend on real overlap.
+- Speculative-decoding acceptance rate was not reliably captured (vLLM counters read zero at capture);
+  the negative result rests on the latency/throughput data.
 
 ## Reproduce
 
