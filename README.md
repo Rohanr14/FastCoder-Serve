@@ -51,6 +51,23 @@ Live latency / throughput / error dashboards under load, no GPU. It demonstrates
 H100 performance (the measured numbers live in [results/](results) and [docs/writeup.md](docs/writeup.md)).
 See [docs/observability.md](docs/observability.md).
 
+## Use it as a tool
+
+FastCoder-Serve installs as a CLI — point it at any OpenAI-compatible endpoint (vLLM, TGI, a hosted
+API) and get an honest, schema-validated Pareto + SLO report. The rigor is the point: every number
+comes from a result file that passes `fastcoder validate`, token counts are exact, and runs are
+captured in reproducibility manifests.
+
+```bash
+pip install -e .                 # registers the `fastcoder` command
+fastcoder endpoint --base-url http://localhost:8000/v1 --model your-model --stream
+fastcoder bench    --config configs/local_smoke.yaml
+fastcoder validate results/local_smoke.json
+fastcoder slo      "mine=results/local_smoke.json"
+```
+
+Subcommands: `endpoint`, `config`, `bench`, `validate`, `slo`, `pareto`. See [docs/tool.md](docs/tool.md).
+
 ## What Exists Now
 
 - Typed Python package scaffold for benchmark, gateway, and plotting code.

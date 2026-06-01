@@ -37,6 +37,9 @@ eval = [
   "human-eval @ git+https://github.com/openai/human-eval.git",
 ]
 
+[project.scripts]
+fastcoder = "fastcoder.cli:main"
+
 [tool.setuptools.packages.find]
 include = ["fastcoder*", "scripts"]
 
