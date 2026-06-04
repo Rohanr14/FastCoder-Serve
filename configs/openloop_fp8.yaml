@@ -1,0 +1,57 @@
+# H100 OPEN-LOOP (arrival-rate) load test on the FP8 server.
+# Fires Poisson-distributed arrivals at each rate regardless of response time, exposing queueing
+# latency, the latency-vs-QPS knee, overload, and SLO-violation curves. Same FP8 server as
+# baseline_fp8.yaml. See Week 6 of docs/runpod_setup.md. Do not run locally.
+experiment_name: openloop_fp8
+model_server:
+  base_url: http://localhost:8000/v1
+  model: Qwen/Qwen2.5-Coder-7B-Instruct
+  timeout_seconds: 120
+  quantization: fp8
+  dtype: fp16
+  notes: Open-loop arrival-rate sweep against the FP8 vLLM server.
+workloads:
+  - short_chat_256_256
+concurrency:
+  - 1            # unused by the open-loop runner; arrival_rates_rps drives load instead
+requests_per_workload_per_concurrency: 1
+max_tokens: 256
+temperature: 0
+stream: true
+output_path: results/openloop_fp8.json
+open_loop:
+  # Sweep below and above the server's capacity (short_chat FP8 saturates ~35-40 req/s) to capture
+  # the knee + overload. Raise/extend on the pod if the knee isn't bracketed.
+  arrival_rates_rps: [5, 10, 20, 30, 40, 50, 60, 80]
+  requests_per_rate: 120
+  slo_ttft_ms: 250
+  slo_latency_ms: 5000
+  seed: 1234
+vllm_version: null
+serving_backend: vllm
+backend_commit: null
+speculative_method: null
+speculative_model: null
+speculative_notes: Open-loop load test uses no speculative decoding.
+cost:
+  accelerator_hourly_cost_usd: 2.20
+hardware:
+  gpu_name: NVIDIA H100 80GB HBM3
+  gpu_memory_gb: 80
+  provider: RunPod
+  hourly_cost_usd: 2.20
+software:
+  vllm_version: null
+  serving_backend: vllm
+  backend_commit: null
+speculation:
+  method: null
+  draft_model: null
+  num_speculative_tokens: null
+  acceptance_rate: null
+  notes: Open-loop load test uses no speculative decoding.
+measurement_hypothesis: Find the FP8 server's sustainable QPS under a p99 TTFT <= 250 ms SLO and characterize queueing/overload past the knee (closed-loop sweeps offered load; this measures fixed arrival rates).
+metadata:
+  local_runnable: "false"
+  warning: Requires an H100 vLLM (or SGLang) server; fires real load at fixed arrival rates. Do not run as local smoke.
+  comparison: Open-loop counterpart to the closed-loop baseline_fp8.yaml; point it at any backend's endpoint to compare overload behavior.

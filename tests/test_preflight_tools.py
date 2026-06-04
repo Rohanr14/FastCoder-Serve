@@ -170,6 +170,24 @@ def test_humaneval_eval_dry_run_does_not_run_or_require_human_eval() -> None:
     assert "human_eval" in result.stdout
 
 
+def test_openloop_dry_run_does_not_fire_load() -> None:
+    result = _run(
+        [
+            "scripts/run_openloop.py",
+            "--config",
+            "configs/openloop_fp8.yaml",
+            "--base-url",
+            "http://127.0.0.1:9/v1",
+        ]
+    )
+
+    assert result.returncode == 0
+    assert "DRY RUN" in result.stdout
+    assert "Would run:" in result.stdout
+    assert "--confirm-paid-run" in result.stdout
+    assert "arrival rates" in result.stdout
+
+
 @pytest.mark.asyncio
 async def test_fetch_vllm_version_reads_version_from_live_route() -> None:
     port = _free_port()

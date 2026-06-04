@@ -58,6 +58,20 @@ class SpeculationConfig(BaseModel):
     notes: str | None = Field(default=None)
 
 
+class OpenLoopConfig(BaseModel):
+    """Open-loop (Poisson arrival-rate) load-test settings.
+
+    Unused by the closed-loop concurrency sweep; read only by the open-loop runner, which fires
+    requests at each arrival rate regardless of response time to expose queueing and overload.
+    """
+
+    arrival_rates_rps: list[float] = Field(default_factory=list)
+    requests_per_rate: int = Field(default=200, ge=1)
+    slo_ttft_ms: float = Field(default=250.0, gt=0)
+    slo_latency_ms: float | None = Field(default=None, gt=0)
+    seed: int = Field(default=1234)
+
+
 class BenchmarkConfig(BaseModel):
     """Top-level benchmark configuration."""
 
@@ -74,6 +88,7 @@ class BenchmarkConfig(BaseModel):
     hardware: HardwareConfig = Field(default_factory=HardwareConfig)
     software: SoftwareConfig = Field(default_factory=SoftwareConfig)
     speculation: SpeculationConfig = Field(default_factory=SpeculationConfig)
+    open_loop: OpenLoopConfig = Field(default_factory=OpenLoopConfig)
     vllm_version: str | None = Field(default=None)
     serving_backend: str | None = Field(default=None)
     backend_commit: str | None = Field(default=None)

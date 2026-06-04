@@ -768,3 +768,49 @@ engine-build step (not just a launch flag), so it's a larger lift — optional a
 | vLLM (done) | `python -m vllm.entrypoints.openai.api_server --quantization fp8 ...` | `baseline_fp8.yaml` |
 | SGLang FP8 | `python -m sglang.launch_server --model-path ... --quantization fp8 ...` | `baseline_sglang_fp8.yaml`, `humaneval_sglang_fp8.yaml` |
 | SGLang FP16 | `python -m sglang.launch_server --model-path ...` (no quant flag) | `baseline_sglang_fp16.yaml` |
+
+---
+
+# Week 6 — Open-loop load test (arrival rates, queueing, overload, SLO curves)
+
+Weeks 1–5 are **closed-loop** (fixed concurrency; offered load adapts to server speed). Week 6 is
+**open-loop**: it fires requests at fixed Poisson **arrival rates** regardless of response time, so
+the server's queue absorbs overload. Sweeping the rate exposes queueing latency, the
+latency-vs-QPS knee, overload (latency divergence past capacity), and the **SLO-violation curve** —
+the capacity-planning view production teams actually use.
+
+Runs against any backend's endpoint — point it at the vLLM **or** SGLang server you already have up.
+Config: `configs/openloop_fp8.yaml` (FP8; edit `arrival_rates_rps` if the knee isn't bracketed).
+
+```bash
+# a server is already running on :8000 (FP8 vLLM from Week 2, or SGLang from Week 5)
+source .venv/bin/activate
+python scripts/run_openloop.py --config configs/openloop_fp8.yaml \
+  --base-url http://127.0.0.1:8000/v1                      # dry run (prints the planned sweep)
+python scripts/run_openloop.py --config configs/openloop_fp8.yaml \
+  --base-url http://127.0.0.1:8000/v1 --confirm-paid-run   # paid: fires the arrival-rate sweep
+```
+
+The runner prints a per-rate table (achieved throughput, p50/p99 latency, p99 TTFT, SLO-violation %)
+and writes `results/openloop_fp8.json`. Copy it off, **terminate**, then plot the curves locally:
+
+```bash
+python scripts/plot_openloop.py results/openloop_fp8.json   # -> results/openloop_fp8.png
+```
+
+> **Open-loop has no concurrency cap by design.** At rates above capacity, requests pile up and —
+> past the per-request `timeout_seconds` — start failing; that *is* the overload signal (latency
+> diverges, SLO-violation → 100%). Keep `requests_per_rate` modest so the overloaded rates don't run
+> too long. To compare engines/precisions, run the same config against each server and overlay the
+> SLO curves.
+
+Send me the JSON and I'll fold the capacity curves into the writeup — "sustainable QPS under a
+250 ms p99 TTFT SLO" is the number teams plan capacity around.
+
+## Week 6 cheat sheet
+
+| step | command |
+| --- | --- |
+| dry run | `python scripts/run_openloop.py --config configs/openloop_fp8.yaml --base-url http://127.0.0.1:8000/v1` |
+| run | add `--confirm-paid-run` |
+| plot | `python scripts/plot_openloop.py results/openloop_fp8.json` |

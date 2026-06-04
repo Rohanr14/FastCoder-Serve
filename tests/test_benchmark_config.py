@@ -139,3 +139,13 @@ def test_load_sglang_cross_backend_configs() -> None:
         assert config.model_server.quantization == quantization
         assert config.workloads == workloads
         assert config.output_path == Path(f"results/{name}.json")
+
+
+def test_load_openloop_config() -> None:
+    config = load_benchmark_config(Path("configs/openloop_fp8.yaml"))
+    assert config.experiment_name == "openloop_fp8"
+    assert config.workloads == ["short_chat_256_256"]
+    assert config.open_loop.arrival_rates_rps == [5, 10, 20, 30, 40, 50, 60, 80]
+    assert config.open_loop.requests_per_rate == 120
+    assert config.open_loop.slo_ttft_ms == 250
+    assert config.output_path == Path("results/openloop_fp8.json")
