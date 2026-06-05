@@ -5,7 +5,8 @@ Responsibilities are deliberately split by safety:
 * ``extract_solution_code`` and ``pass_at_1`` are pure, deterministic helpers. They never execute
   model output and are fully unit tested locally.
 * ``score_completion`` / ``score_completions`` execute model-generated code and therefore run ONLY
-  where the optional ``human_eval`` package is installed (the eval pod; ``pip install -e .[eval]``).
+  where the optional ``human_eval`` package is installed (pod-only; install with
+  ``pip install git+https://github.com/openai/human-eval.git``).
   Execution is delegated to ``human_eval.execution.check_correctness``, which runs each candidate in
   a guarded subprocess with a hard timeout — we deliberately never roll our own ``exec``. The import
   is lazy, so importing this module never imports ``human_eval`` and local CI stays download- and
@@ -164,9 +165,9 @@ def _load_check_correctness() -> Any:
     except ImportError as exc:  # pragma: no cover - exercised via monkeypatched sys.modules
         msg = (
             "HumanEval scoring requires the 'human_eval' package, which is intentionally not "
-            "installed locally or in CI. Install the eval extra on the pod "
-            "(pip install -e .[eval]). Scoring executes model-generated code and must run only in "
-            "the sandboxed pod environment."
+            "installed locally or in CI. Install it on the pod "
+            "(pip install git+https://github.com/openai/human-eval.git). Scoring executes "
+            "model-generated code and must run only in the sandboxed pod environment."
         )
         raise HumanEvalScoringUnavailableError(msg) from exc
     return check_correctness

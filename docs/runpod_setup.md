@@ -28,7 +28,7 @@ flag, troubleshooting, and the methodology/measurement rules, it hands off to
 1. One-time: add your SSH **public** key to RunPod, and (recommended) create a Network Volume.
 2. Create a fresh **1× H100 80GB** pod from a CUDA/PyTorch template, attaching the volume.
 3. SSH in from the Windsurf integrated terminal.
-4. Bootstrap: clone repo → venv → `make install` → install vLLM → install `.[eval]`.
+4. Bootstrap: clone repo → venv → `make install` → install vLLM → install `human-eval` (from GitHub).
 5. Launch vLLM under `tmux` (FP16).
 6. `check_endpoint.py` to confirm it serves.
 7. Latency baseline: dry-run, then `--confirm-paid-run`.
@@ -154,7 +154,7 @@ make install
 pip install vllm==0.21.0
 
 # HumanEval prompts + scorer (pod-only; pulls human-eval from GitHub).
-pip install -e ".[eval]"
+pip install "git+https://github.com/openai/human-eval.git"   # HumanEval scorer (pod-only)
 ```
 
 ### 4a. Enable HumanEval code execution (one-time, easy to miss)
@@ -349,7 +349,7 @@ export HF_HOME=/workspace/hf
 python3.11 -m venv .venv && source .venv/bin/activate
 make install
 pip install vllm==0.21.0
-pip install -e ".[eval]"
+pip install "git+https://github.com/openai/human-eval.git"   # HumanEval scorer (pod-only)
 # enable human_eval exec (see step 4a) — REQUIRED for pass@1
 
 # --- serve (in tmux) ---
@@ -673,105 +673,7 @@ draft config.
 
 ---
 
-# Week 5 — Cross-backend study (vLLM vs SGLang)
-
-Week 5 answers "which serving *engine* is faster?" by running the **same model, sweep, and precision
-on SGLang** and comparing to the committed vLLM results. SGLang exposes an OpenAI-compatible API, so
-the FastCoder runner is unchanged — only the server differs (and the configs record
-`serving_backend: sglang`).
-
-Configs: `configs/baseline_sglang_fp16.yaml`, `configs/baseline_sglang_fp8.yaml`,
-`configs/humaneval_sglang_fp8.yaml` (compare to `baseline_fp16`, `baseline_fp8`, `humaneval_fp8`).
-
-> **Separate venv.** SGLang and vLLM pin conflicting torch/flashinfer versions — install SGLang in
-> its **own** venv and keep the FastCoder client in the main `.venv`. SGLang reuses the HF weight
-> cache on the Network Volume (no new download for FP16; FP8 is online quantization).
->
-> **⚠️ SGLang flags differ from vLLM** (`--model-path`, `--quantization`, `--context-length`) and
-> vary by version — confirm with `python -m sglang.launch_server --help`. `vllm_version` is null for
-> these runs (SGLang has no `/version`); record the SGLang version in `docs/methodology.md`.
-
-## Install SGLang (one-time, separate venv)
-
-```bash
-cd /workspace/FastCoder-Serve
-python3.11 -m venv .venv-sglang
-source .venv-sglang/bin/activate
-pip install "sglang[all]"
-python -c "import sglang; print('sglang', sglang.__version__)"   # record this version
-deactivate
-```
-
-## Serve with SGLang + run the benchmark
-
-Launch SGLang from its venv (FP8 shown; drop `--quantization fp8` for the FP16 run):
-
-```bash
-tmux attach -t vllm     # stop any vLLM server first (one engine per GPU/port)
-source .venv-sglang/bin/activate && export HF_HOME=/workspace/hf
-python -m sglang.launch_server \
-  --model-path Qwen/Qwen2.5-Coder-7B-Instruct \
-  --served-model-name Qwen/Qwen2.5-Coder-7B-Instruct \
-  --host 0.0.0.0 --port 8000 --context-length 4096 \
-  --quantization fp8
-# Ctrl-b d to detach
-```
-
-Run the benchmark from the **main** venv (the FastCoder client only needs httpx):
-
-```bash
-source .venv/bin/activate
-python scripts/check_endpoint.py --base-url http://127.0.0.1:8000/v1 \
-  --model Qwen/Qwen2.5-Coder-7B-Instruct --timeout-seconds 120 --stream
-
-# FP8 latency/throughput (dry run, then paid)
-python scripts/run_h100_baseline.py --config configs/baseline_sglang_fp8.yaml \
-  --base-url http://127.0.0.1:8000/v1
-python scripts/run_h100_baseline.py --config configs/baseline_sglang_fp8.yaml \
-  --base-url http://127.0.0.1:8000/v1 --confirm-paid-run
-
-# FP8 HumanEval (quality parity; dry run first without the flag)
-python scripts/run_humaneval_eval.py --config configs/humaneval_sglang_fp8.yaml \
-  --base-url http://127.0.0.1:8000/v1 --confirm-paid-run
-
-python scripts/validate_results.py results/baseline_sglang_fp8.json
-python scripts/validate_results.py results/humaneval_sglang_fp8.json
-```
-
-For the clean no-quant comparison, restart SGLang **without** `--quantization fp8` and run
-`configs/baseline_sglang_fp16.yaml` the same way.
-
-## Compare
-
-Copy the JSONs off, **terminate**, then compare each engine head-to-head locally:
-
-```bash
-python scripts/slo_analysis.py \
-  "vllm-fp8=results/baseline_fp8.json" "sglang-fp8=results/baseline_sglang_fp8.json"
-python scripts/slo_analysis.py \
-  "vllm-fp16=results/baseline_fp16.json" "sglang-fp16=results/baseline_sglang_fp16.json"
-```
-
-Send me the four JSONs and I'll fold the engine comparison into the writeup. The interesting story is
-usually *where* on the concurrency curve each engine wins (SGLang's RadixAttention vs vLLM's
-scheduler), plus confirmed pass@1 parity (same greedy outputs, different engine).
-
-## TensorRT-LLM (stretch)
-
-A third engine (TensorRT-LLM via `trtllm-serve`) would strengthen it further, but it needs an
-engine-build step (not just a launch flag), so it's a larger lift — optional after vLLM-vs-SGLang.
-
-## Week 5 cheat sheet
-
-| engine | launch (confirm flags) | configs |
-| --- | --- | --- |
-| vLLM (done) | `python -m vllm.entrypoints.openai.api_server --quantization fp8 ...` | `baseline_fp8.yaml` |
-| SGLang FP8 | `python -m sglang.launch_server --model-path ... --quantization fp8 ...` | `baseline_sglang_fp8.yaml`, `humaneval_sglang_fp8.yaml` |
-| SGLang FP16 | `python -m sglang.launch_server --model-path ...` (no quant flag) | `baseline_sglang_fp16.yaml` |
-
----
-
-# Week 6 — Open-loop load test (arrival rates, queueing, overload, SLO curves)
+# Week 5 — Open-loop load test (arrival rates, queueing, overload, SLO curves)
 
 Weeks 1–5 are **closed-loop** (fixed concurrency; offered load adapts to server speed). Week 6 is
 **open-loop**: it fires requests at fixed Poisson **arrival rates** regardless of response time, so
@@ -807,7 +709,7 @@ python scripts/plot_openloop.py results/openloop_fp8.json   # -> results/openloo
 Send me the JSON and I'll fold the capacity curves into the writeup — "sustainable QPS under a
 250 ms p99 TTFT SLO" is the number teams plan capacity around.
 
-## Week 6 cheat sheet
+## Week 5 cheat sheet
 
 | step | command |
 | --- | --- |

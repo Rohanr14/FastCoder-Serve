@@ -474,8 +474,8 @@ def _load_humaneval_problems(path: str | None) -> list[dict[str, Any]]:
         return from_package
     msg = (
         "HumanEval workload requested, but no HumanEval problem source is available. Provide a "
-        f"JSONL(.gz) path (argument or ${_HUMANEVAL_ENV_VAR}), or install the eval extra "
-        "(pip install -e '.[eval]'). Local CI intentionally does not bundle HumanEval data."
+        f"JSONL(.gz) path (argument or ${_HUMANEVAL_ENV_VAR}), or install human_eval on the pod "
+        "(pip install git+https://github.com/openai/human-eval.git). Local CI does not bundle it."
     )
     raise HumanEvalUnavailableError(msg)
 

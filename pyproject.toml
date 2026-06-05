@@ -39,11 +39,10 @@ dev = [
   "ruff>=0.5",
   "mypy>=1.10",
 ]
-# HumanEval prompts/scoring. Pod-only; never installed in CI. The loader also accepts a local
-# JSONL(.gz) via FASTCODER_HUMANEVAL_PATH, so this extra is optional even on the pod.
-eval = [
-  "human-eval @ git+https://github.com/openai/human-eval.git",
-]
+# HumanEval scoring needs the pod-only `human_eval` package, installed directly from GitHub
+# (pip install git+https://github.com/openai/human-eval.git). It is intentionally NOT declared as a
+# dependency/extra here, because PyPI rejects direct-URL dependencies. The loader also accepts a
+# local JSONL(.gz) via FASTCODER_HUMANEVAL_PATH.
 
 [project.urls]
 Repository = "https://github.com/Rohanr14/FastCoder-Serve"

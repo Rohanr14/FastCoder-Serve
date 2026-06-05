@@ -123,24 +123,6 @@ def test_load_speculative_decoding_configs() -> None:
         assert config.speculation.num_speculative_tokens == 5
 
 
-def test_load_sglang_cross_backend_configs() -> None:
-    latency = ["short_chat_256_256", "long_context_4k_512"]
-    expected = {
-        "baseline_sglang_fp16": (None, latency),
-        "baseline_sglang_fp8": ("fp8", latency),
-        "humaneval_sglang_fp8": ("fp8", ["humaneval"]),
-    }
-    for name, (quantization, workloads) in expected.items():
-        config = load_benchmark_config(Path(f"configs/{name}.yaml"))
-        assert config.experiment_name == name
-        assert config.serving_backend == "sglang"
-        assert config.software.serving_backend == "sglang"
-        assert config.vllm_version is None
-        assert config.model_server.quantization == quantization
-        assert config.workloads == workloads
-        assert config.output_path == Path(f"results/{name}.json")
-
-
 def test_load_openloop_config() -> None:
     config = load_benchmark_config(Path("configs/openloop_fp8.yaml"))
     assert config.experiment_name == "openloop_fp8"

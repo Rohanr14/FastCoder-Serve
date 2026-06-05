@@ -29,6 +29,20 @@ reason: INT4's advantage is a smaller weight *footprint*, and a 7B already fits 
 — so the only thing INT4 buys you here is the dequantization overhead. INT4 earns its keep when the
 model *doesn't* fit or you need maximum KV-cache headroom. Neither was true here.
 
+## The bigger surprise: speculative decoding made it *worse*
+
+I tried speculative decoding — a small draft model proposing tokens the 7B verifies — expecting
+lower latency. It did the opposite: inter-token latency got **~7× worse even at low load**. On an
+H100 the 7B already decodes at ~4 ms/token, so there's almost no latency to recover, and the draft +
+verification just pile on overhead; under load, throughput collapsed up to 10×. Speculative decoding
+is for *slow or large* models at low QPS — not a fast 7B on a compute-rich GPU. Knowing when **not**
+to reach for a technique is half the job.
+
+Prefix caching was the optimization that *did* pay off: on a shared-context workload (one fixed 4K
+prompt, many questions — think a pinned codebase), enabling it cut tail TTFT 85% and **more than
+doubled throughput at high concurrency**. Turn it on whenever your traffic shares prefixes; it costs
+nothing when it doesn't.
+
 ## Capacity is the number that matters
 
 Aggregate throughput hides what a server can do *at a latency target*. So I computed max sustained
@@ -39,6 +53,12 @@ throughput under a p99 time-to-first-token SLO:
 - Long-context (4K) throughput **peaks at concurrency 32 and collapses at 64** across all precisions
   — the KV footprint oversubscribes the scheduler. Short-chat keeps scaling. Lesson: cap max
   concurrency by workload shape, not globally.
+
+I also load-tested it **open-loop** — Poisson arrivals at a fixed rate with no concurrency cap, the
+way real traffic actually hits. The FP8 server holds the 250 ms p99 TTFT SLO up to ~37 req/s of
+short-chat, then degrades *gracefully*: latency climbs and ~17% of requests miss the SLO at 2×
+capacity, with no crashes. "Sustainable QPS at an SLO" — not peak throughput — is what you actually
+provision against.
 
 ## The part I'm actually proud of: keeping it honest
 
@@ -54,12 +74,11 @@ Benchmarks are easy to fool yourself with. Some guardrails I built in:
   become KV-cache headroom, not lower peak. Claiming "FP8 uses less memory" from that number would
   be wrong, so I don't.
 
-## Reproduce it
+## Reproduce it — or point it at your own endpoint
 
-Everything — pod setup, configs, runners, the SLO analysis, and a from-scratch RunPod guide — is in
-the repo. One H100-hour reproduces the whole frontier.
-
-**Next up:** a prefix-caching ablation on a shared-context workload (the "same codebase, many
-questions" pattern), where I expect the long-context numbers to improve sharply.
+The whole thing is open-source and packaged: `pip install fastcoder-serve`, then aim it at any
+OpenAI-compatible endpoint for the same validated latency/throughput/quality/cost Pareto and capacity
+report. One H100-hour reproduces the entire study — pod setup, configs, runners, the SLO analysis,
+and a from-scratch RunPod guide are all in the repo.
 
 *Stack: vLLM 0.21.0 · Qwen2.5-Coder-7B-Instruct · single H100 80GB · FP16 / FP8 / AWQ-Marlin INT4.*

@@ -25,6 +25,9 @@ reproduce from scratch with [runpod_setup.md](runpod_setup.md).
 - **Speculative decoding made it *worse*, not better:** draft-model and n-gram both *raised* latency
   (ITL 7× worse even at concurrency 1) and cut throughput up to 10×. A fast 7B on a compute-rich H100
   has no latency to recover — speculation is for slow/large models at low QPS.
+- **Open-loop capacity (the number you provision against):** under a 250 ms p99 TTFT SLO the FP8
+  server sustains ~37 req/s of short-chat; throughput saturates there, and at ~2× capacity (80 req/s)
+  17% of requests miss the SLO — overload shows up as latency growth, not crashes.
 
 ## Setup
 
@@ -103,6 +106,38 @@ Long-context throughput **peaks at c32 and drops at c64** for all three (e.g. FP
 tok/s) while p99 TTFT jumps to ~1.9–2.6 s — the 4k-token KV footprint oversubscribes the scheduler.
 Short-chat keeps scaling to c64. **Takeaway: set max concurrency by workload shape** — ~32 for
 long-context, higher for short-chat.
+
+## Open-loop capacity: arrival rates, queueing, and overload
+
+The closed-loop sweep above caps concurrency, so offered load can never exceed what the server
+clears. Production traffic isn't like that — it arrives at a *rate*, independent of how fast you
+respond. So I added an open-loop test: fire Poisson-distributed arrivals at a fixed rate with **no
+concurrency cap** and let the server's queue absorb the load. FP8 server, `short_chat`,
+SLO = p99 TTFT ≤ 250 ms:
+
+| offered (req/s) | achieved (req/s) | p99 latency (s) | p99 TTFT (s) | SLO violation |
+| --- | --- | --- | --- | --- |
+| 5 | 5.6 | 1.28 | 0.058 | 0% |
+| 20 | 18.9 | 1.35 | 0.052 | 0% |
+| 40 | 30.9 | 1.53 | 0.064 | 0% |
+| 50 | 34.8 | 1.63 | 0.069 | 0% |
+| 60 | 37.3 | 1.65 | 0.211 | 0% |
+| **80** | **36.8** | **2.05** | **0.642** | **17%** |
+
+Three things appear that the closed-loop sweep can't show (plotted in
+[`results/openloop_fp8.png`](../results/openloop_fp8.png)):
+
+- **Throughput saturates at ~37 req/s.** Offer 60 or 80 and achieved throughput doesn't rise — the
+  extra requests just queue.
+- **Queueing latency builds, then bends.** End-to-end latency drifts up from 1.28 s to ~1.65 s out to
+  60 req/s, then jumps to 2.05 s at 80 — past saturation, the queue (not the model) is the latency.
+- **The SLO holds well past saturation, then cliffs.** p99 TTFT stays under 250 ms (0% violation) all
+  the way to 60 req/s; at 80 req/s (~2× capacity) it hits 642 ms and **17% of requests miss the SLO**.
+  No hard failures in the swept range — overload here is latency degradation, not crashes.
+
+**The capacity-planning number:** this FP8 server holds the 250 ms p99 TTFT SLO up to ~60 req/s
+offered, delivering its ~37 req/s saturation throughput, with comfortable TTFT headroom at ~50 req/s.
+"Sustainable QPS at an SLO" — not peak throughput — is what you actually provision against.
 
 ## Prefix caching: the high-concurrency fix for shared context
 
@@ -193,15 +228,15 @@ Putting the frontier together into "what would I actually deploy?":
   target is already fast and batching saturates compute). Reserve it for latency-bound, low-QPS
   serving of slow or large models.
 - **Capacity planning — size to an SLO, not to peak throughput.** Pick the latency target first,
-  then read max sustained throughput at it (`scripts/slo_analysis.py`). Under a 250 ms p99 TTFT SLO
-  this stack sustains ~4,800 tok/s on FP8 (~$0.13/1M). A few ms of TTFT can cross an SLO threshold
-  and unlock a much higher operating point, so measure at *your* target, not at headline peak.
+  then read max sustained throughput at it: `scripts/slo_analysis.py` for the closed-loop view,
+  `scripts/run_openloop.py` for arrival-rate capacity. Under a 250 ms p99 TTFT SLO this FP8 server
+  sustains ~37 req/s of short-chat open-loop (≈4,800 tok/s closed-loop). Provision against that
+  sustainable QPS, not the headline peak — a few ms of TTFT can flip the SLO.
 
 ## Limitations
 
-- One model, one GPU, one serving backend (vLLM 0.21.0). No cross-backend (TensorRT-LLM / SGLang)
-  comparison yet.
-- Closed-loop concurrency sweep, not an open-loop arrival-rate / queueing study.
+- Scope is a single model, GPU, and serving engine (vLLM 0.21.0) — an engine-internal study, not a
+  cross-engine (TensorRT-LLM / SGLang) comparison.
 - Cost assumes $2.20/hr and aggregate throughput; treat $/token as an order-of-magnitude figure.
 - AWQ-INT4 used the official `-AWQ` checkpoint; a different INT4 recipe (e.g. GPTQ) could differ.
 - The prefix-caching result is a shared-prefix upper bound; production gains depend on real overlap.

@@ -114,7 +114,7 @@ def _print_dry_run(
     )
     print(
         "Scoring executes model-generated code and requires the 'human_eval' package "
-        "(pip install -e '.[eval]'); it is intentionally unavailable locally and in CI."
+        "(pip install git+https://github.com/openai/human-eval.git); intentionally absent in CI."
     )
     print()
     print(

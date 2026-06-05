@@ -78,6 +78,10 @@ results/manifests/*
 !results/spec_ngram_fp8.json
 !results/manifests/spec_draft_fp8_20260531T230310Z.json
 !results/manifests/spec_ngram_fp8_20260531T231434Z.json
+# Open-loop (arrival-rate) load test — final result, plot, and manifest.
+!results/openloop_fp8.json
+!results/openloop_fp8.png
+!results/manifests/openloop_fp8_20260604T225856Z.json
 
 # Docker/runtime noise
 *.pid
